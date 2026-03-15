@@ -1,0 +1,16 @@
+---
+title: "Group 21 Project"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+## Test loading the data
+```{r run-main}
+source("load.r")
+# Load the data
+data <- load_data("archive/olist_orders_dataset.csv")
+#display the first few rows of the data
+print(head(data))
+```
