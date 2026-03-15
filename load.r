@@ -13,3 +13,9 @@ load_data <- function(file_path, removed_columns = NULL) {
     return(data_frame)
 }
 
+merge_frames <- function(frame1, frame2, by_column) {
+    # Merge two data frames based on a common column
+    merged_frame <- merge(frame1, frame2, by = by_column)
+    return(merged_frame)
+}
+

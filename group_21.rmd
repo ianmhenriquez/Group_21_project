@@ -7,10 +7,26 @@ output:
 ---
 
 ## Test loading the data
+The loader code already has the capability to remove not useful columns, but we need to discuss which ones to remove. For now, we will load all the data and then decide which columns to keep or remove.
 ```{r run-main}
 source("load.r")
-# Load the data
-data <- load_data("archive/olist_orders_dataset.csv")
-#display the first few rows of the data
-print(head(data))
+# Load the data frames
+# TODO remove not useful columns, it's already in the code but need to discuss which ones to remove
+order_items_frame <- load_data("archive/olist_order_items_dataset.csv")
+order_seller_frame <- load_data("archive/olist_sellers_dataset.csv")
+order_product_frame <- load_data("archive/olist_products_dataset.csv")
+#display the data for testing
+print(str(order_items_frame))
+print(str(order_seller_frame))
+print(str(order_product_frame))
+```
+## Create merged data frame
+This merges the three data frames ( order_items_frame, order_seller_frame, order_product_frame) based on common columns (seller_id and product_id). The resulting merged data frame will contain all the relevant information from the three original data frames, allowing for more comprehensive analysis.
+```{r merge-data}
+# Merge the data frames based on common columns
+merged_frame <- merge_frames(order_items_frame, order_seller_frame, by_column = "seller_id")
+merged_frame <- merge_frames(merged_frame, order_product_frame, by_column = "product_id")
+
+# Display the structure of the merged data frame
+print(str(merged_frame))
 ```
