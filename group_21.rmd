@@ -16,9 +16,9 @@ order_items_frame <- load_data("archive/olist_order_items_dataset.csv")
 order_seller_frame <- load_data("archive/olist_sellers_dataset.csv")
 order_product_frame <- load_data("archive/olist_products_dataset.csv")
 #display the data for testing
-print(str(order_items_frame))
-print(str(order_seller_frame))
-print(str(order_product_frame))
+str(order_items_frame)
+str(order_seller_frame)
+str(order_product_frame)
 ```
 ## Create merged data frame
 This merges the three data frames ( order_items_frame, order_seller_frame, order_product_frame) based on common columns (seller_id and product_id). The resulting merged data frame will contain all the relevant information from the three original data frames, allowing for more comprehensive analysis.
@@ -28,5 +28,5 @@ merged_frame <- merge_frames(order_items_frame, order_seller_frame, by_column = 
 merged_frame <- merge_frames(merged_frame, order_product_frame, by_column = "product_id")
 
 # Display the structure of the merged data frame
-print(str(merged_frame))
+str(merged_frame)
 ```
