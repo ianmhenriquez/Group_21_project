@@ -15,6 +15,7 @@ source("load.r")
 order_items_frame <- load_data("archive/olist_order_items_dataset.csv")
 order_seller_frame <- load_data("archive/olist_sellers_dataset.csv")
 order_product_frame <- load_data("archive/olist_products_dataset.csv")
+order_translation_frame <- load_data("archive/product_category_name_translation.csv")
 #display the data for testing
 str(order_items_frame)
 str(order_seller_frame)
@@ -27,6 +28,60 @@ This merges the three data frames ( order_items_frame, order_seller_frame, order
 merged_frame <- merge_frames(order_items_frame, order_seller_frame, by_column = "seller_id")
 merged_frame <- merge_frames(merged_frame, order_product_frame, by_column = "product_id")
 
+# Map Portuguese category names to English using a left join
+merged_frame <- merge(
+  merged_frame,
+  order_translation_frame,
+  by = "product_category_name",
+  all.x = TRUE
+)
+
+# Keep only the English category name in the merged frame
+merged_frame$product_category_name <- merged_frame$product_category_name_english
+merged_frame$product_category_name_english <- NULL
+
 # Display the structure of the merged data frame
 str(merged_frame)
 ```
+
+# Exploration
+Now that we have the merged data frame, we can start exploring the data to gain insights and identify patterns. We can perform various analyses such as summary statistics, visualizations, and correlation analysis to understand the relationships between different variables in the dataset.
+```{r exploration_boxplot}
+# Summary statistics of the merged data frame
+summary(merged_frame)
+
+# boxplot of price by product category
+boxplot(merged_frame$price ~ merged_frame$product_category_name,
+        main = "Boxplot of Price by Product Category",
+        xlab = "Product Category",
+        ylab = "Price",
+        las = 2, # Rotate x-axis labels for better readability
+        cex.axis = 0.7) # Adjust x-axis label size
+```
+
+## Histogram of price to see the distribution of prices in the dataset
+```{r exploration_histogram}
+# Histogram of price
+hist(merged_frame$price,
+      main = "Histogram of Price",
+      xlab = "Price",
+      ylab = "Frequency",
+      col = "lightblue",
+      border = "black",
+      breaks = 150)
+```
+
+## Looking at how often each product category appears in the dataset
+```{r categorical_analysis}
+cbind(table(merged_frame$product_category_name))
+
+barplot(sort(table(merged_frame$product_category_name), decreasing = TRUE, las = 2),
+        main = "Bar Plot of Product Categories",
+        xlab = "Product Category",
+        ylab = "Frequency",
+        las = 2, # Rotate x-axis labels for better readability
+        cex.axis = 0.7) # Adjust x-axis label size
+```
+
+
+
