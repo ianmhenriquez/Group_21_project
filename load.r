@@ -8,14 +8,13 @@ load_data <- function(file_path, removed_columns = NULL) {
         data_frame <- data_frame[, !colnames(data_frame) %in% removed_columns]
     }
 
-    # Perform initial cleaning (e.g., remove NA values)
-    data_frame <- na.omit(data_frame)
+    # Note: Do NOT call na.omit() here - it silently removes rows with any NA
+    # (e.g., products with missing categories). Handle NAs explicitly in merge logic instead.
     return(data_frame)
 }
 
-merge_frames <- function(frame1, frame2, by_column) {
-    # Merge two data frames based on a common column
-    merged_frame <- merge(frame1, frame2, by = by_column)
-    return(merged_frame)
+# remove multiple columns from a data frame
+remove_column <- function(data_frame, column_name) {
+    data_frame <- data_frame[, !colnames(data_frame) %in% column_name]
+    return(data_frame)
 }
-
