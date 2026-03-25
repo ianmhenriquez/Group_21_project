@@ -108,13 +108,21 @@ cat("Maximum payment rows for a single order:", max(payment_rows_per_order), "\n
 cat("Rows in main table after raw merge:", rows_before, "\n")
 
 # STEP 2: Fix it — aggregate to one row per order
-payments_by_order <- aggregate(
-  cbind(payment_value_total = payment_value,
-        payment_installments_total = payment_installments) ~ order_id,
+payments_by_order_value <- aggregate(
+  payment_value ~ order_id,
   data = payment_frame,
   FUN = sum
 )
+names(payments_by_order_value)[names(payments_by_order_value) == "payment_value"] <- "payment_value_total"
 
+payments_by_order_installments <- aggregate(
+  payment_installments ~ order_id,
+  data = payment_frame,
+  FUN = max
+)
+names(payments_by_order_installments)[names(payments_by_order_installments) == "payment_installments"] <- "payment_installments_total"
+
+payments_by_order <- merge(payments_by_order_value, payments_by_order_installments, by = "order_id")
 # STEP 3: Rebuild cleanly — drop raw payment columns, deduplicate, rejoin totals
 raw_payment_cols <- c("payment_sequential", "payment_type", 
                       "payment_installments", "payment_value")
