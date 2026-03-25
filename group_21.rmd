@@ -65,7 +65,7 @@ based on our goal of identifying economic demographics of customers based on are
 ```{r remove-columns}
 
 # Columns to remove from order_items
-columns_to_remove <- c("order_item_id", "shipping_limit_date", "seller_id", "freight_value")
+columns_to_remove <- c("shipping_limit_date", "freight_value")
 order_items_frame <- remove_column(order_items_frame, columns_to_remove)
 
 # Columns to remove from products
