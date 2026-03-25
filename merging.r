@@ -32,25 +32,16 @@ merge_olist_data <- function(products_translated, order_items_frame, orders_fram
     by = "customer_id",
     all.x = TRUE
   )
-  
-  # Aggregate payments to one row per order
-  # There are multiple payments per order, which would create duplicate rows.
-  # Aggregating ensures a cleaner and more accurate representation.
-  payments_by_order <- aggregate(
-    cbind(payment_value_total = payment_value, 
-          payment_installments_total = payment_installments) ~ order_id,
-    data = payment_frame,
-    FUN = sum
-  )
-  
-  # Merge payments into the table
+
+  #Merge payment data
+  # NOTE: payment_frame is merged raw intentionally to demonstrate row inflation.
+  # We will address this in the next step by aggregating payment information to one row per order.
   orders_enriched <- merge(
     orders_enriched,
-    payments_by_order,
+    payment_frame,
     by = "order_id",
     all.x = TRUE
   )
-  
   return(orders_enriched)
 }
 

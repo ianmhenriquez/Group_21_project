@@ -95,9 +95,40 @@ orders_enriched <- merge_olist_data(
 orders_enriched <- remove_column(orders_enriched, "customer_id")
 ```
 
-Now that we have the merged script we will start exploring and taking a look at our data to understand the distributions, missing values, and relationships between variables. This will help us identify any patterns or insights that can inform our analysis and modeling efforts.
+## Payment Aggregation: Handling Row Inflation
+As you may have noticed the raw payment merge introduced row inflation because some orders have multiple payment rows (e.g. a customer paying partly by card, 
+partly by voucher) this was done intentionally. We believe it important to show the effects of this choice, then fix it by aggregating payment information to one row per order.
+```{r payment-aggregation}
+# STEP 1: Show the problem
+rows_before <- nrow(orders_enriched)
+
+payment_rows_per_order <- table(payment_frame$order_id)
+cat("Orders with more than one payment row:", sum(payment_rows_per_order > 1), "\n")
+cat("Maximum payment rows for a single order:", max(payment_rows_per_order), "\n")
+cat("Rows in main table after raw merge:", rows_before, "\n")
+
+# STEP 2: Fix it — aggregate to one row per order
+payments_by_order <- aggregate(
+  cbind(payment_value_total = payment_value,
+        payment_installments_total = payment_installments) ~ order_id,
+  data = payment_frame,
+  FUN = sum
+)
+
+# STEP 3: Rebuild cleanly — drop raw payment columns, deduplicate, rejoin totals
+raw_payment_cols <- c("payment_sequential", "payment_type", 
+                      "payment_installments", "payment_value")
+orders_enriched <- orders_enriched[, !names(orders_enriched) %in% raw_payment_cols]
+orders_enriched <- unique(orders_enriched)
+orders_enriched <- merge(orders_enriched, payments_by_order, by = "order_id", all.x = TRUE)
+
+cat("Rows after fix:", nrow(orders_enriched), "\n")
+cat("Rows removed:", rows_before - nrow(orders_enriched), "\n")
+```
+The raw payment merge inflated the table because Olist allows split payments — a single order can be paid across multiple methods (credit card + voucher, for instance). Rather than silently pre-aggregating this, we first expose the inflation explicitly, then resolve it by summing payment_value and payment_installments to order level. This preserves the total economic value of each order while eliminating structural duplicates. The choice of sum over mean is deliberate: we want to know the total amount paid and total installments committed per order, not the average across payment methods.
+
 # Exploration
-Now that we have the merged data frame, we can start exploring the data to gain and seeing id there's any missing values, outliers, and the distribution of the variables. This will help us understand the data better and inform our modeling decisions later on.
+Now that we have the merged script we will start exploring and taking a look at our data to understand the distributions, missing values, and relationships between variables. This will help us identify any patterns or insights that can inform our analysis and modeling efforts.
 
 ## Missing values
 ```{r missing-values}
@@ -133,6 +164,8 @@ print(missing_summary)
 As we can see after handling the missing values, we have a complete dataset with no missing values, which is now ready to check for outliers, skewness, and other distributions.
 
 ## Outliers, skewness, and distributions
+
+### numerical variables
 ```{r outliers-skewness-distributions}
 
 # check skewness
@@ -146,10 +179,6 @@ skewness_summary <- data.frame(
   skewness = sapply(num_vars, skewness, na.rm = TRUE)
 )
 print(skewness_summary)
-
-# Rule of thumb: |skewness| > 1 = highly skewed, consider log transform
-highly_skewed <- skewness_summary[abs(skewness_summary$skewness) > 1, "variable"]
-cat("Highly skewed variables:", paste(highly_skewed, collapse = ", "), "\n")
 
 # DISTRIBUTIONS: NUMERICAL VARIABLES
 # Faceted histograms for all numeric variables at once
@@ -171,6 +200,24 @@ hist(orders_enriched$payment_value_total, breaks = 50, main = "Payment (raw)", x
 hist(log1p(orders_enriched$payment_value_total), breaks = 50, main = "Payment (log)", xlab = "")
 par(mfrow = c(1, 1))
 
+num_vars <- orders_enriched[, c("price", "payment_value_total", "payment_installments_total")]
+
+boxplot(
+  list(
+    Price = orders_enriched$price,
+    Payment_Value = orders_enriched$payment_value_total,
+    Payment_Installments = orders_enriched$payment_installments_total
+  ),
+  main = "Outliers Across Key Numeric Variables",
+  ylab = "Value"
+)
+cor(num_vars, use = "complete.obs")
+```
+Price and payment value are heavily right-skewed (skewness > 3), suggesting a log transformation may be appropriate before feeding these into distance-sensitive models such as k-means or PCA. The variable customer_state has 27 unique values with SP dominating (~40% of orders), which may warrant grouping by region rather than state in subsequent modelling to avoid sparsity. No variables exceed 1% missingness, so imputation is not strictly necessary.
+
+### Categorical variables
+Lets take a peak at the distrubution of the categorical variables.
+```{r categorical-distributions}
 # CATEGORICAL VARIABLES: CARDINALITY + FREQUENCY
 cat_vars <- orders_enriched[, sapply(orders_enriched, is.character)]
 
@@ -181,15 +228,10 @@ cat_summary <- data.frame(
   top_value_pct = sapply(cat_vars, function(x) round(max(table(x)) / length(x) * 100, 1))
 )
 print(cat_summary)
+print(sort(table(orders_enriched$product_category_name_english), decreasing = TRUE))
+cat("\nMedian category count: ", median(table(orders_enriched$product_category_name_english)), "\n\n")
 
-hist(orders_enriched$price, breaks = 50, main = "Price Distribution")
-hist(orders_enriched$payment_value_total, breaks = 50, main = "Payment Distribution")
-
-boxplot(orders_enriched$price, main = "Price Outliers")
-
-# How many orders have suspiciously high prices? filtering out NA values since they are not relevant for this analysis
-sum(orders_enriched$price > quantile(orders_enriched$price, 0.99, na.rm = TRUE), na.rm = TRUE)
-
+# create a bar plot of this 
 category_counts <- sort(table(orders_enriched$product_category_name_english), decreasing = TRUE)
 barplot(head(category_counts, 20), las = 2, cex.names = 0.7, main = "Top 20 Categories")
 
@@ -199,23 +241,31 @@ barplot(tail(category_counts, 20), las = 2, cex.names = 0.7, main = "Bottom 20 C
 state_counts <- sort(table(orders_enriched$customer_state), decreasing = TRUE)
 barplot(state_counts, las = 2, main = "Orders by State")
 
-hist(orders_enriched$payment_installments_total, breaks = 20, main = "Installments Distribution")
-
 # Average installments by state
 tapply(orders_enriched$payment_installments_total, orders_enriched$customer_state, mean, na.rm = TRUE)
 
-num_vars <- orders_enriched[, c("price", "payment_value_total", "payment_installments_total")]
-
-cor(num_vars, use = "complete.obs")
 ```
 
-Price and payment value are heavily right-skewed (skewness > 3), suggesting a log transformation may be appropriate before feeding these into distance-sensitive models such as k-means or PCA. The variable customer_state has 27 unique values with SP dominating (~40% of orders), which may warrant grouping by region rather than state in subsequent modelling to avoid sparsity. No variables exceed 1% missingness, so imputation is not strictly necessary.
+## Data transformation and outlier handling
+Based on the skewness and outliers observed in the numerical variables, we will apply a log transformation to the price and payment_value_total variables to reduce skewness and mitigate the influence of extreme values. This will help improve the performance of distance-based models and ensure that the data is more normally distributed for modeling. We will also consider grouping the customer_state variable into broader regions to reduce sparsity and improve model performance, especially for models that may struggle with high-cardinality categorical variables.
+
+## Numerical variable transformations
+```{r numerical-transformations}
+# Log transformation for skewed variables
+orders_enriched$price_log <- log1p(orders_enriched$price)
+orders_enriched$payment_value_total_log <- log1p(orders_enriched$payment_value_total)
+# Check skewness after transformation
+skewness(orders_enriched$price_log, na.rm = TRUE)
+skewness(orders_enriched$payment_value_total_log, na.rm = TRUE)
+```
 
 
-### removing outliers
+## Categorical variable transformations
+```{r categorical-transformations}
+merge_categories(orders_enriched)
+```
 
-
-# Payment Installments Analysis
+# Feature Engineering
 
 ## Payment Installments by State
 ```{r installments-by-state}
