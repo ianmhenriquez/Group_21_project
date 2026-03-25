@@ -270,7 +270,7 @@ skewness(orders_enriched$payment_value_total_log, na.rm = TRUE)
 
 ## Categorical variable transformations
 ```{r categorical-transformations}
-merge_categories(orders_enriched)
+orders_enriched <- merge_categories(orders_enriched)
 ```
 
 # Feature Engineering
