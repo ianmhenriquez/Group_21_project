@@ -18,3 +18,18 @@ remove_column <- function(data_frame, column_name) {
     data_frame <- data_frame[, !colnames(data_frame) %in% column_name]
     return(data_frame)
 }
+
+# install and load necessary packages
+install_and_load <- function(){
+    # Set the CRAN mirror:
+    local({r <- getOption("repos")
+    r["CRAN"] <- "https://cran.rstudio.com/"
+    options(repos = r)})
+    # Install the packages used in this workbook:
+    packages <- c("C50", "ggplot2", "gmodels", "Hmisc", "randomForest", "rsample", "e1071", "tidyr")
+    for (i in packages) {
+    if(!require(i, character.only = TRUE)) {
+    install.packages(i, dependencies = TRUE)
+    }
+    }
+}

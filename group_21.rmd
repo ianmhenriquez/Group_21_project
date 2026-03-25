@@ -5,11 +5,15 @@ output:
   word_document: default
   html_document: default
 ---
-
-## Test loading the data
-The loader code already has the capability to remove not useful columns, but we need to discuss which ones to remove. For now, we will load all the data and then decide which columns to keep or remove.
+# Introduction of the business problem
+The goal of this project is to analyze the Olist e-commerce dataset to identify economic demographics of customers based on area, with the aim of predicting emerging markets for certain product categories.
+## load the data
 ```{r load-data}
-source("load.r")
+source("helper.r")
+
+# install and load packages
+install_and_load()
+
 # Load the data frames
 customer_frame <- load_data("archive/olist_customers_dataset.csv")
 
@@ -20,10 +24,30 @@ payment_frame <- load_data("archive/olist_order_payments_dataset.csv")
 product_frame <- load_data("archive/olist_products_dataset.csv")
 translation_frame <- load_data("archive/product_category_name_translation.csv")
 
+geolocation_frame <- load_data("archive/olist_geolocation_dataset.csv")
+reviews_frame <- load_data("archive/olist_order_reviews_dataset.csv")
+sellers_frame <- load_data("archive/olist_sellers_dataset.csv")
 ```
-## Create merged data frame
-Here we will merge the data frames to create a single data frame that contains all the relevant information for our analysis. We will start by merging the product information with the order items, and then merge that with the orders and customer information. Finally, we will merge the payment information to have a complete view of each order. We will also remove any columns that are not relevant for our analysis to keep the data frame clean and focused on the variables we want to analyze.
-```{r merge-data}
+
+# Data Preparation
+## pre merge look at the data frames
+Before merging the data frames, we will take a look at each individual data frame to understand their structure, the variables they contain, and how they relate to each other.
+```{r pre-merge-look}
+# Look at the structure of each data frame
+str(customer_frame)
+str(orders_frame)
+str(order_items_frame)
+str(payment_frame)
+str(product_frame)
+str(translation_frame)
+str(geolocation_frame)
+str(reviews_frame)
+str(sellers_frame)
+```
+
+### Translation of product categories
+First things first we can see that there's a translation frame for the categories, since we dont speak Portuguese, we will make use of this imediately to translate the category names to English, which will make it easier for us to understand and analyze the data.
+```{r translate-categories}
 # Add English category names to products
 products_translated <- merge(
   product_frame,
@@ -31,75 +55,288 @@ products_translated <- merge(
   by = "product_category_name",
   all.x = TRUE
 )
+```
 
-# add columns for removal
-columns_to_remove <- c("order_item_id", "shipping_limit_date", "seller_id")
+### excluding frames
+By looking at the data frames, we can see that some of them are not relevant for our analysis, such as the geolocation_frame, reviews_frame, and sellers_frame. These data frames contain information that is not directly related to our goal of identifying economic demographics of customers based on area, so we will exclude them from our analysis and not merge them into the main data frame.
 
-# remove order_item_id since it only serves as an ID for the placement of the item in the order, which is not relevant for our analysis
+### removing unused columns
+based on our goal of identifying economic demographics of customers based on area, we will remove columns that are not relevant for this analysis.
+```{r remove-columns}
+
+# Columns to remove from order_items
+columns_to_remove <- c("order_item_id", "shipping_limit_date", "seller_id", "freight_value")
 order_items_frame <- remove_column(order_items_frame, columns_to_remove)
 
-products_translated <- remove_column(products_translated, "product_category_name")
+# Columns to remove from products
+columns_to_remove <- c("product_category_name", "product_name_lenght","product_description_lenght", "product_photos_qty","product_weight_g", "product_length_cm", "product_height_cm", "product_width_cm")
+products_translated <- remove_column(products_translated, columns_to_remove)
 
-# Merge order items with translated product information 
-order_items_enriched <- merge(
-  order_items_frame,
-  products_translated,
-  by = "product_id",
-  all.x = TRUE
-)
-
+# Columns to remove from orders
 columns_to_remove <- c("order_purchase_timestamp", "order_approved_at", "order_delivered_carrier_date", "order_delivered_customer_date", "order_estimated_delivery_date")
 orders_frame <- remove_column(orders_frame, columns_to_remove)
+```
 
-# Merge orders with order items enriched with product information
-orders_enriched <- merge(
+## Create merged data frame
+Here we will merge the data frames to create a single data frame that contains all the relevant information for our analysis. the functionly is defined in the merging.r file, which we will source to use the merge_olist_data function. This function takes preprocessed data frames as input and merges them based on the common keys to create a comprehensive data frame for analysis.
+```{r merge-data}
+source("merging.r")
+
+# Merge all preprocessed data frames using the merge_olist_data function
+orders_enriched <- merge_olist_data(
+  products_translated,
+  order_items_frame,
   orders_frame,
-  order_items_enriched,
-  by = "order_id",
-  all.x = TRUE
+  payment_frame,
+  customer_frame
 )
 
-orders_enriched <- merge(
-  orders_enriched,
-  customer_frame,
-  by = "customer_id",
-  all.x = TRUE
-)
-# remove customer_id since customer_unique_id is more useful bc it allows us to identify unique customers, while customer_id is just an ID for the order, which is not relevant for our analysis
+# Remove customer_id after merging since customer_unique_id is more useful
 orders_enriched <- remove_column(orders_enriched, "customer_id")
-
-# Aggregate payments to one row per order before merging bc there are multiple payments per order, which would create duplicate rows in the merged data frame and make analysis more difficult. By aggregating the payments to one row per order, we can have a cleaner and more accurate representation of the total payment value and installments for each order.
-payments_by_order <- aggregate(
-  cbind(payment_value_total = payment_value, 
-        payment_installments_total = payment_installments) ~ order_id,
-  data = payment_frame,
-  FUN = sum
-)
-
-# Merge payments into the analytical table
-orders_enriched <- merge(
-  orders_enriched,
-  payments_by_order,
-  by = "order_id",
-  all.x = TRUE
-)
 ```
 
+Now that we have the merged script we will start exploring and taking a look at our data to understand the distributions, missing values, and relationships between variables. This will help us identify any patterns or insights that can inform our analysis and modeling efforts.
 # Exploration
-Now that we have the merged data frame, we can start exploring the data to gain insights and identify patterns. We can perform various analyses such as summary statistics, visualizations, and correlation analysis to understand the relationships between different variables in the dataset.
-```{r exploration_boxplot}
-# Summary statistics of the merged data frame
-summary(orders_enriched)
+Now that we have the merged data frame, we can start exploring the data to gain and seeing id there's any missing values, outliers, and the distribution of the variables. This will help us understand the data better and inform our modeling decisions later on.
 
-# boxplot of price by product category
-boxplot(orders_enriched$price ~ orders_enriched$product_category_name,
-        main = "Boxplot of Price by Product Category",
-        xlab = "Product Category",
-        ylab = "Price",
-        las = 2, # Rotate x-axis labels for better readability
-        cex.axis = 0.7) # Adjust x-axis label size
+## Missing values
+```{r missing-values}
+# Summary of missing values
+missing_summary <- data.frame(
+  variable = names(orders_enriched),
+  n_missing = sapply(orders_enriched, function(x) sum(is.na(x))),
+  pct_missing = sapply(orders_enriched, function(x) round(mean(is.na(x
+)) * 100, 2))
+)
+missing_summary <- missing_summary[order(-missing_summary$pct_missing), ]
+print(missing_summary)
 ```
 
-## What are we trying to accomplish?
-The goal is to identify economic demographics of customers based on area. In order to be able to predict emerging markets for certain product categories.
+As we can see there's a lot of missing values mostly in the categorical variable, upon closer look we can see that this is due to orders that have been cancelled, unavilable, created, processing, approved, or invoiced. Since these orders have not been delivered they have a lot of missing values in the product category and payment information, which is expected. Because our analysis is focused on identifying economic demographics of customers based on area, we will focus on the orders that have been delivered and have complete information, so we will remove the orders with non-delivered statuses from our analysis.
+Along with the statuses there are also some missing values in the product category name, which we will handle by replacing the missing values with "miscellaneous", since we don't have any information about these products, this will allow us to keep these orders in our analysis without losing too much information.
+```{r handle-missing-values}
+orders_enriched <- orders_enriched[!orders_enriched$order_status %in% c("canceled", "unavailable", "created", "processing", "approved", "invoiced"), ]
 
+# If category name is missing, add "miscellaneous" as the category name
+orders_enriched$product_category_name_english[is.na(orders_enriched$product_category_name_english)] <- "miscellaneous"
+
+# Summary of missing values
+missing_summary <- data.frame(
+  variable = names(orders_enriched),
+  n_missing = sapply(orders_enriched, function(x) sum(is.na(x))),
+  pct_missing = sapply(orders_enriched, function(x) round(mean(is.na(x
+)) * 100, 2))
+)
+missing_summary <- missing_summary[order(-missing_summary$pct_missing), ]
+print(missing_summary)
+```
+As we can see after handling the missing values, we have a complete dataset with no missing values, which is now ready to check for outliers, skewness, and other distributions.
+
+## Outliers, skewness, and distributions
+```{r outliers-skewness-distributions}
+
+# check skewness
+num_vars <- orders_enriched[, sapply(orders_enriched, is.numeric)]
+
+skewness_summary <- data.frame(
+  variable = names(num_vars),
+  mean     = sapply(num_vars, mean, na.rm = TRUE),
+  median   = sapply(num_vars, median, na.rm = TRUE),
+  sd       = sapply(num_vars, sd, na.rm = TRUE),
+  skewness = sapply(num_vars, skewness, na.rm = TRUE)
+)
+print(skewness_summary)
+
+# Rule of thumb: |skewness| > 1 = highly skewed, consider log transform
+highly_skewed <- skewness_summary[abs(skewness_summary$skewness) > 1, "variable"]
+cat("Highly skewed variables:", paste(highly_skewed, collapse = ", "), "\n")
+
+# DISTRIBUTIONS: NUMERICAL VARIABLES
+# Faceted histograms for all numeric variables at once
+num_long <- tidyr::pivot_longer(num_vars, everything(), 
+                                 names_to = "variable", values_to = "value")
+
+ggplot(num_long, aes(x = value)) +
+  geom_histogram(bins = 40, fill = "steelblue", color = "white") +
+  facet_wrap(~ variable, scales = "free") +
+  labs(title = "Distribution of Numerical Variables", x = NULL, y = "Count") +
+  theme_minimal()
+
+# LOG TRANSFORMATION CHECK for skewed vars
+# Visual before/after for price and payment_value_total
+par(mfrow = c(2, 2))
+hist(orders_enriched$price, breaks = 50, main = "Price (raw)", xlab = "")
+hist(log1p(orders_enriched$price), breaks = 50, main = "Price (log)", xlab = "")
+hist(orders_enriched$payment_value_total, breaks = 50, main = "Payment (raw)", xlab = "")
+hist(log1p(orders_enriched$payment_value_total), breaks = 50, main = "Payment (log)", xlab = "")
+par(mfrow = c(1, 1))
+
+# CATEGORICAL VARIABLES: CARDINALITY + FREQUENCY
+cat_vars <- orders_enriched[, sapply(orders_enriched, is.character)]
+
+cat_summary <- data.frame(
+  variable      = names(cat_vars),
+  n_unique      = sapply(cat_vars, function(x) length(unique(x))),
+  top_value     = sapply(cat_vars, function(x) names(sort(table(x), decreasing=TRUE)[1])),
+  top_value_pct = sapply(cat_vars, function(x) round(max(table(x)) / length(x) * 100, 1))
+)
+print(cat_summary)
+
+hist(orders_enriched$price, breaks = 50, main = "Price Distribution")
+hist(orders_enriched$payment_value_total, breaks = 50, main = "Payment Distribution")
+
+boxplot(orders_enriched$price, main = "Price Outliers")
+
+# How many orders have suspiciously high prices? filtering out NA values since they are not relevant for this analysis
+sum(orders_enriched$price > quantile(orders_enriched$price, 0.99, na.rm = TRUE), na.rm = TRUE)
+
+category_counts <- sort(table(orders_enriched$product_category_name_english), decreasing = TRUE)
+barplot(head(category_counts, 20), las = 2, cex.names = 0.7, main = "Top 20 Categories")
+
+# bottom 20 categories
+barplot(tail(category_counts, 20), las = 2, cex.names = 0.7, main = "Bottom 20 Categories")
+
+state_counts <- sort(table(orders_enriched$customer_state), decreasing = TRUE)
+barplot(state_counts, las = 2, main = "Orders by State")
+
+hist(orders_enriched$payment_installments_total, breaks = 20, main = "Installments Distribution")
+
+# Average installments by state
+tapply(orders_enriched$payment_installments_total, orders_enriched$customer_state, mean, na.rm = TRUE)
+
+num_vars <- orders_enriched[, c("price", "payment_value_total", "payment_installments_total")]
+
+cor(num_vars, use = "complete.obs")
+```
+
+Price and payment value are heavily right-skewed (skewness > 3), suggesting a log transformation may be appropriate before feeding these into distance-sensitive models such as k-means or PCA. The variable customer_state has 27 unique values with SP dominating (~40% of orders), which may warrant grouping by region rather than state in subsequent modelling to avoid sparsity. No variables exceed 1% missingness, so imputation is not strictly necessary.
+
+
+### removing outliers
+
+
+# Payment Installments Analysis
+
+## Payment Installments by State
+```{r installments-by-state}
+# Analyze payment installments by state using tapply
+state_installments_summary <- data.frame(
+  state = unique(orders_enriched$customer_state),
+  stringsAsFactors = FALSE
+)
+
+state_installments_summary$total_installments <- tapply(
+  orders_enriched$payment_installments_total, 
+  orders_enriched$customer_state, 
+  sum, 
+  na.rm = TRUE
+)[state_installments_summary$state]
+
+state_installments_summary$avg_installments <- tapply(
+  orders_enriched$payment_installments_total, 
+  orders_enriched$customer_state, 
+  mean, 
+  na.rm = TRUE
+)[state_installments_summary$state]
+
+state_installments_summary$median_installments <- tapply(
+  orders_enriched$payment_installments_total, 
+  orders_enriched$customer_state, 
+  median, 
+  na.rm = TRUE
+)[state_installments_summary$state]
+
+state_installments_summary$order_count <- tapply(
+  orders_enriched$payment_installments_total, 
+  orders_enriched$customer_state, 
+  length
+)[state_installments_summary$state]
+
+# Sort by total installments (descending)
+state_installments_summary <- state_installments_summary[order(-state_installments_summary$total_installments), ]
+
+print("States Ranked by TOTAL Payment Installments:")
+print(state_installments_summary)
+
+# Visualization: Top states by total installments
+top_states_total <- state_installments_summary[1:10, ]
+barplot(top_states_total$total_installments, 
+        names.arg = top_states_total$state, 
+        las = 2, 
+        main = "Top 10 States by Total Payment Installments",
+        ylab = "Total Installments",
+        col = "steelblue")
+
+# Visualization: Top states by average installments
+state_installments_avg <- state_installments_summary[order(-state_installments_summary$avg_installments), ]
+top_states_avg <- state_installments_avg[1:10, ]
+barplot(top_states_avg$avg_installments, 
+        names.arg = top_states_avg$state, 
+        las = 2, 
+        main = "Top 10 States by Average Payment Installments",
+        ylab = "Average Installments",
+        col = "darkgreen")
+```
+
+## Payment Installments by Category
+```{r installments-by-category}
+# Analyze payment installments by product category using tapply
+category_installments_summary <- data.frame(
+  category = unique(orders_enriched$product_category_name_english),
+  stringsAsFactors = FALSE
+)
+
+category_installments_summary$total_installments <- tapply(
+  orders_enriched$payment_installments_total, 
+  orders_enriched$product_category_name_english, 
+  sum, 
+  na.rm = TRUE
+)[category_installments_summary$category]
+
+category_installments_summary$avg_installments <- tapply(
+  orders_enriched$payment_installments_total, 
+  orders_enriched$product_category_name_english, 
+  mean, 
+  na.rm = TRUE
+)[category_installments_summary$category]
+
+category_installments_summary$median_installments <- tapply(
+  orders_enriched$payment_installments_total, 
+  orders_enriched$product_category_name_english, 
+  median, 
+  na.rm = TRUE
+)[category_installments_summary$category]
+
+category_installments_summary$order_count <- tapply(
+  orders_enriched$payment_installments_total, 
+  orders_enriched$product_category_name_english, 
+  length
+)[category_installments_summary$category]
+
+# Sort by total installments (descending)
+category_installments_summary <- category_installments_summary[order(-category_installments_summary$total_installments), ]
+
+print("Categories Ranked by TOTAL Payment Installments:")
+print(category_installments_summary)
+
+# Visualization: Top categories by total installments
+top_categories_total <- category_installments_summary[1:15, ]
+barplot(top_categories_total$total_installments, 
+        names.arg = top_categories_total$category, 
+        las = 2, 
+        main = "Top 15 Categories by Total Payment Installments",
+        ylab = "Total Installments",
+        col = "steelblue",
+        cex.names = 0.7)
+
+# Visualization: Top categories by average installments
+category_installments_avg <- category_installments_summary[order(-category_installments_summary$avg_installments), ]
+top_categories_avg <- category_installments_avg[1:15, ]
+barplot(top_categories_avg$avg_installments, 
+        names.arg = top_categories_avg$category, 
+        las = 2, 
+        main = "Top 15 Categories by Average Payment Installments",
+        ylab = "Average Installments",
+        col = "darkgreen",
+        cex.names = 0.7)
+```
