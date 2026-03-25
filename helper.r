@@ -29,8 +29,11 @@ install_and_load <- function(){
     # Install the packages used in this workbook:
     packages <- c("C50", "ggplot2", "gmodels", "Hmisc", "randomForest", "rsample", "e1071", "tidyr")
     for (i in packages) {
-    if(!require(i, character.only = TRUE)) {
-        install.packages(i, dependencies = TRUE)
-    }
+        if (!require(i, character.only = TRUE)) {
+            install.packages(i, dependencies = TRUE)
+            if (!require(i, character.only = TRUE)) {
+                stop(paste("Package", i, "could not be loaded even after installation."))
+            }
+        }
     }
 }
