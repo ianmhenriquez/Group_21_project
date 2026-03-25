@@ -46,7 +46,7 @@ str(sellers_frame)
 ```
 
 ### Translation of product categories
-First things first we can see that there's a translation frame for the categories, since we dont speak Portuguese, we will make use of this imediately to translate the category names to English, which will make it easier for us to understand and analyze the data.
+First things first we can see that there's a translation frame for the categories; since we don’t speak Portuguese, we will make use of this immediately to translate the category names to English, which will make it easier for us to understand and analyze the data.
 ```{r translate-categories}
 # Add English category names to products
 products_translated <- merge(
