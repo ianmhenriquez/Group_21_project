@@ -5,7 +5,7 @@ load_data <- function(file_path, removed_columns = NULL) {
 
     # Remove specified columns
     if (!is.null(removed_columns)) {
-        data_frame <- data_frame[, !colnames(data_frame) %in% removed_columns]
+        data_frame <- data_frame[, !colnames(data_frame) %in% removed_columns, drop = FALSE]
     }
 
     # Note: Do NOT call na.omit() here - it silently removes rows with any NA
@@ -15,7 +15,7 @@ load_data <- function(file_path, removed_columns = NULL) {
 
 # remove multiple columns from a data frame
 remove_column <- function(data_frame, column_name) {
-    data_frame <- data_frame[, !colnames(data_frame) %in% column_name]
+    data_frame <- data_frame[, !colnames(data_frame) %in% column_name, drop = FALSE]
     return(data_frame)
 }
 

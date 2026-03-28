@@ -1,31 +1,73 @@
-# Data Merging and Preparation
+source("helper.r") # Ensure helper functions are available
+
 # This script contains functions for merging and preparing the Olist dataset
 
 # Main merging function that combines all data frames
-merge_olist_data <- function(products_translated, order_items_frame, orders_frame, payment_frame, customer_frame) {
+merge_olist_data <- function( orders_frame, translation_frame, order_items_frame, payment_frame, customer_frame, sellers_frame = NULL, product_frame) {
 
-  # Merge order items with translated product information
+  payments_agg <- aggregate(
+    cbind(payment_value, payment_installments) ~ order_id,
+    data = payment_frame,
+    FUN = function(x) c(total = sum(x), max = max(x))
+  )
+
+  payments_agg <- data.frame(
+    order_id = payments_agg$order_id,
+    payment_value_total = payments_agg$payment_value[, "total"],
+    payment_installments_max = payments_agg$payment_installments[, "max"]
+  )
+
+  # standardize date formats in orders_frame
+  orders_frame$order_delivered_customer_date <- as.Date(
+    orders_frame$order_delivered_customer_date, format = "%Y-%m-%d")
+
+  orders_frame$order_estimated_delivery_date <- as.Date(
+    orders_frame$order_estimated_delivery_date, format = "%Y-%m-%d")
+
+  orders_frame$order_purchase_timestamp <- as.POSIXct(
+    orders_frame$order_purchase_timestamp, format = "%Y-%m-%d %H:%M:%S")
+
+  orders_frame$order_delivered_carrier_date <- as.Date(
+    orders_frame$order_delivered_carrier_date, format = "%Y-%m-%d")
+
+  # merge products with category translations
+  translated_products <- merge(
+    product_frame,
+    translation_frame,
+    by = "product_category_name",
+    all.x = TRUE
+  )
+
+  removed_translation_columns <- c("product_category_name", "product_name_lenght", "product_description_lenght", "product_photos_qty")
+  translated_products <- remove_column(translated_products, removed_translation_columns)
+  # add empty categoires to misc category
+  translated_products$product_category_name_english[is.na(translated_products$product_category_name_english)] <- "Miscellaneous"
+
+  # merge translated product into order_items
   order_items_enriched <- merge(
     order_items_frame,
-    products_translated,
+    translated_products,
     by = "product_id",
     all.x = TRUE
   )
-  
-  # Show order status distribution
-  cat("Order Status Distribution:\n")
-  print(table(orders_frame$order_status))
-  cat("\n")
-  
-  # Merge orders with order items enriched with product information
+
+  #merge order_items_enriched product with seller info
+  order_items_enriched <- merge(
+    order_items_enriched,
+    sellers_frame,
+    by = "seller_id",
+    all.x = TRUE
+  )
+
+  # merge aggregated payment with orders
   orders_enriched <- merge(
     orders_frame,
-    order_items_enriched,
+    payments_agg,
     by = "order_id",
     all.x = TRUE
   )
-  
-  # Merge with customer information
+
+  #merge customer info into order items + payments
   orders_enriched <- merge(
     orders_enriched,
     customer_frame,
@@ -33,45 +75,27 @@ merge_olist_data <- function(products_translated, order_items_frame, orders_fram
     all.x = TRUE
   )
 
-  #Merge payment data
-  # NOTE: payment_frame is merged raw intentionally to demonstrate row inflation.
-  # We will address this in the next step by aggregating payment information to one row per order.
-  orders_enriched <- merge(
+  # create new features for delivery performance analysis
+  orders_enriched <- orders_enriched[
+  !is.na(orders_enriched$order_delivered_customer_date) & 
+  !is.na(orders_enriched$order_estimated_delivery_date), ]
+
+  orders_enriched$is_late <- as.factor(ifelse(
+    orders_enriched$order_delivered_customer_date > 
+    orders_enriched$order_estimated_delivery_date, "Late", "On_Time"))
+
+  orders_enriched$delivery_delay_days <- as.numeric(difftime(
+    orders_enriched$order_delivered_customer_date,
+    orders_enriched$order_estimated_delivery_date,
+    units = "days"))
+
+  # merge enriched orders with enriched order items since orders are the main unit of analysis for our project
+  order_items_enriched <- merge(
+    order_items_enriched,
     orders_enriched,
-    payment_frame,
     by = "order_id",
     all.x = TRUE
   )
-  return(orders_enriched)
-}
 
-# Category merging function
-# Merges sparse categories into broader groupings
-merge_categories <- function(orders_enriched) {
-  
-  # Show category distribution before merging
-  cat("Category Distribution (before merging):\n")
-  print(sort(table(orders_enriched$product_category_name_english), decreasing = TRUE))
-  cat("\nMedian category count: ", median(table(orders_enriched$product_category_name_english)), "\n\n")
-  
-  # Merge fashion related categories
-  orders_enriched$product_category_name_english[grepl("fashion", orders_enriched$product_category_name_english)] <- "fashion"
-  
-  # Merge home furniture related categories
-  home_furniture_categories <- c("furniture_bedroom", "furniture_mattress_and_upholstery", "kitchen_dining_laundry_garden_furniture", "la_cuisine", "home_comfort_2")
-  orders_enriched$product_category_name_english[orders_enriched$product_category_name_english %in% home_furniture_categories] <- "home_furniture"
-  
-  # Merge construction tool related categories
-  construction_tool_categories <- c("construction_tools_safety", "costruction_tools_garden", "costruction_tools_tools", "signaling_and_security", "security_and_services")
-  orders_enriched$product_category_name_english[orders_enriched$product_category_name_english %in% construction_tool_categories] <- "construction_tools"
-  
-  # Merge appliance related categories
-  appliance_categories <- c("home_appliances_2", "small_appliances_home_oven_and_coffee")
-  orders_enriched$product_category_name_english[orders_enriched$product_category_name_english %in% appliance_categories] <- "appliances"
-  
-  # Merge industry related categories
-  industry_commerce_categories <- c("agro_industry_and_commerce", "industry_commerce_and_business")
-  orders_enriched$product_category_name_english[orders_enriched$product_category_name_english %in% industry_commerce_categories] <- "industry_commerce"
-  
-  return(orders_enriched)
+  return(order_items_enriched)
 }
