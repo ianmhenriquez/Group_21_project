@@ -35,12 +35,14 @@ orders_enriched <- merge_olist_data(
   sellers_frame,
   product_frame
 )
+
+late_rate <- round(mean(orders_enriched$is_late == "Late") * 100, 1)
 ```
 
 # Introduction of the Business Problem
 
 ## The Business Context
-Olist operates as a multi-seller marketplace. Like many e-commerce platforms, Olist suffers from delayed deliveries, which inevitably leads to poor customer reviews, platform churn, and high customer support costs. Because Olist does not own the inventory or directly control the dispatch process, the root cause of these delays often stems from individual seller behavior (e.g., poor logistics management, slow processing times). 
+Olist operates as a multi-seller marketplace. Like many e-commerce platforms, Olist suffers from delayed deliveries (Across the dataset, `r late_rate`% of delivered orders arrived after the estimated delivery date.), which inevitably leads to poor customer reviews, platform churn, and high customer support costs. Because Olist does not own the inventory or directly control the dispatch process, the root cause of these delays often stems from individual seller behavior (e.g., poor logistics management, slow processing times). 
 
 ## The Problem
 Currently, Olist's approach to delayed deliveries is purely reactive—dealing with angry customers *after* the estimated delivery date has already been missed. To reduce support costs and protect the platform's brand reputation, Olist needs a proactive mechanism to identify at-risk orders before they fail, and a strategic framework to manage underperforming sellers.
@@ -78,6 +80,7 @@ barplot(
   ylab = "Average Star Rating (1-5)",
   ylim = c(0, 5)
 )
+
 ```
 
 ## The Analytics Task
@@ -94,78 +97,94 @@ We aim to adopt a two-stage analytical approach to transition Olist from reactiv
 data_dictionary <- data.frame(
   variable = names(orders_enriched),
   data_role = c(
-    "identifier",
-    "identifier",
-    "identifier",
-    "identifier",
+    "identifier", "identifier", "identifier", "identifier",
     "temporal",
-    "predictor",
-    "predictor",
-    "predictor",
-    "predictor",
-    "predictor",
-    "predictor",
-    "predictor",
-    "context",
-    "context",
-    "context",
-    "identifier",
-    "context",
-    "temporal",
-    "temporal",
-    "temporal",
-    "temporal",
-    "temporal",
-    "predictor",
-    "predictor",
-    "identifier",
-    "context",
-    "context",
-    "context",
-    "outcome",
-    "outcome"
+    "predictor", "predictor", "predictor", "predictor",
+    "predictor", "predictor", "predictor",
+    "context", "context", "context",
+    "identifier", "context",
+    "temporal", "temporal", "temporal", "temporal", "temporal",
+    "predictor", "predictor",
+    "identifier", "context", "context", "context",
+    "outcome", "outcome"
   ),
   description = c(
     "Unique identifier for each order",
     "Unique identifier for the seller",
     "Unique identifier for the product",
-    "Unique identifier for each item in the order",
-    "Shipping deadline date",
-    "Price of the product in the order item",
-    "Freight/shipping cost for the order item",
+    "Sequence number of item within the order",
+    "Seller's shipping deadline for the item",
+    "Listed price of the product",
+    "Freight/shipping cost for the item",
     "Weight of the product in grams",
-    "Length of the product in centimeters",
-    "Height of the product in centimeters",
-    "Width of the product in centimeters",
-    "Product category name in English",
+    "Length of the product in centimetres",
+    "Height of the product in centimetres",
+    "Width of the product in centimetres",
+    "Product category name (English)",
     "Seller's zip code prefix",
     "Seller's city",
     "Seller's state",
-    "Unique identifier for each customer",
-    "Status of the order",
-    "Date and time when the order was placed",
-    "Date and time when the order was approved",
-    "Date when the order was delivered by carrier",
-    "Date when the order was delivered to the customer",
-    "Estimated delivery date",
-    "Total payment value for the order",
-    "Maximum number of installments for payment",
-    "Unique identifier for the customer",
+    "Unique identifier for the customer (order-level)",
+    "Order status at time of data extraction",
+    "Timestamp when the order was placed",
+    "Timestamp when payment was approved",
+    "Date the order was handed to the carrier",
+    "Date the order was delivered to the customer",
+    "Estimated delivery date shown to customer",
+    "Total payment value for the order (aggregated)",
+    "Maximum instalment plan length for the order",
+    "Anonymised unique customer identifier",
     "Customer's zip code prefix",
     "Customer's city",
     "Customer's state",
-    "Binary flag indicating if the order was delivered late",
-    "Number of days the delivery was delayed"
+    "Target variable: whether the order was delivered late",
+    "Signed delivery delay in days (negative = early)"
   )
 )
-knitr::kable(data_dictionary, format = "markdown", col.names = c("Variable", "Data Role", "Description"))
+knitr::kable(
+  data_dictionary,
+  format = "markdown",
+  col.names = c("Variable", "Data Role", "Description")
+)
 ```
-
 # Data Preparation
 
+## Dataset Overview and Selection
 
-# excluding frames
-Add text later 
+The Olist dataset comprises eight relational tables linked by shared keys. We
+load all eight and make deliberate inclusion decisions based on relevance to
+the business problem. The table below summarises these decisions.
+
+| Dataset | Included | Rationale |
+|---------|----------|-----------|
+| olist_orders | Yes | Analytical spine — contains all delivery timestamps and order status |
+| olist_order_items | Yes | Links sellers to orders; provides price, freight, and product keys |
+| olist_sellers | Yes | Seller geography — state and city for Stage 1 clustering |
+| olist_customers | Yes | Customer state — used as a predictor in Stage 2 classification |
+| olist_products | Yes | Physical dimensions (weight, size) — predictors of delivery complexity |
+| olist_order_payments | Yes | Payment value and instalment behaviour — order-level predictors |
+| olist_geolocation | No | Ambiguous deduplication required (multiple coordinates per zip code prefix); flagged as a direction for future improvement |
+| olist_order_reviews | No | Outcome of delivery performance, not a predictor — inclusion would constitute data leakage. Used only for the proof-of-concept visualisation above. |
+
+## Merge Strategy
+
+The full merge sequence is:
+
+1. `orders` + `payments_aggregated` → via `order_id`
+2. + `customers` → via `customer_id`
+3. `order_items` + `products_translated` → via `product_id`
+4. + `sellers` → via `seller_id`
+5. Final join: orders spine + enriched order items → via `order_id`
+
+## Column Removal
+
+## Target Variable Construction
+```{r target-variable-summary, echo=FALSE}
+cat("On time:", sum(orders_enriched$is_late == "On_Time"), "\n")
+cat("Late:   ", sum(orders_enriched$is_late == "Late"), "\n")
+cat("Late rate:", round(mean(orders_enriched$is_late == "Late") * 100, 1), "%\n")
+cat("Total labelled orders:", nrow(orders_enriched), "\n")
+```
 
 # Exploration
 
@@ -181,16 +200,23 @@ missing_summary <- data.frame(
 missing_summary <- missing_summary[order(-missing_summary$pct_missing), ]
 print(missing_summary)
 ```
+Since these correspond to products with no physical measurements recorded in the source they will be imputed with the median value for each dimension.
+```{r impute-dimensions}
+dim_cols <- c("product_weight_g", "product_length_cm",
+              "product_height_cm", "product_width_cm")
 
-## Outliers, skewness, and distributions
+for (col in dim_cols) {
+  orders_enriched[[col]][is.na(orders_enriched[[col]])] <-
+    median(orders_enriched[[col]], na.rm = TRUE)
+}
 
-### numerical variables
+cat("Remaining NAs after imputation:", sum(is.na(orders_enriched)), "\n")
+```
+
+## Distributions and Skewness
+
+### Numerical Variables
 ```{r outliers-skewness-distributions}
-
-# Check balance — important for classification
-cat("On time:", sum(orders_frame$is_late == 0), "\n")
-cat("Late:   ", sum(orders_frame$is_late == 1), "\n")
-cat("Late rate:", round(mean(orders_frame$is_late == 1) * 100, 1), "%\n")
 
 # check skewness
 num_vars <- orders_enriched[, sapply(orders_enriched, is.numeric)]
@@ -216,45 +242,354 @@ ggplot(num_long, aes(x = value)) +
   theme_minimal()
 
 # LOG TRANSFORMATION CHECK for skewed vars
-# Visual before/after for price and payment_value_total
+# Visual before/after for price, payment_value_total, freight_value, and product_weight_g 
 par(mfrow = c(2, 2))
 hist(orders_enriched$price, breaks = 50, main = "Price (raw)", xlab = "")
 hist(log1p(orders_enriched$price), breaks = 50, main = "Price (log)", xlab = "")
-#hist(orders_enriched$payment_value_total, breaks = 50, main = "Payment (raw)", xlab = "")
-#hist(log1p(orders_enriched$payment_value_total), breaks = 50, main = "Payment (log)", xlab = "")
+hist(orders_enriched$payment_value_total, breaks = 50, main = "Payment (raw)", xlab = "")
+hist(log1p(orders_enriched$payment_value_total), breaks = 50, main = "Payment (log)", xlab = "")
+hist(orders_enriched$freight_value, breaks = 50, main = "Freight (raw)", xlab = "")
+hist(log1p(orders_enriched$freight_value), breaks = 50, main = "Freight (log)", xlab = "")
+hist(orders_enriched$product_weight_g, breaks = 50, main = "Weight (raw)", xlab = "")
+hist(log1p(orders_enriched$product_weight_g), breaks = 50, main = "Weight (log)", xlab = "")
 par(mfrow = c(1, 1))
 
-#num_vars <- orders_enriched[, c("price", "payment_value_total", "payment_installments_total")]
-
-#boxplot(
- # list(
-  #  Price = orders_enriched$price,
-    #Payment_Value = orders_enriched$payment_value_total,
-    #Payment_Installments = orders_enriched$payment_installments_total
-  #),
-  #main = "Outliers Across Key Numeric Variables",
-  #ylab = "Value"
-#
-#cor(num_vars, use = "complete.obs")
 ```
-Price and payment value are heavily right-skewed (skewness > 3), suggesting a log transformation may be appropriate before feeding these into distance-sensitive models such as k-means or PCA. The variable customer_state has 27 unique values with SP dominating (~40% of orders), which may warrant grouping by region rather than state in subsequent modelling to avoid sparsity. No variables exceed 1% missingness, so imputation is not strictly necessary.
-
 ### Categorical variables
+```{r categorical-distributions, fig.height=5}
+par(mfrow = c(1, 3))
 
-## Data transformation and outlier handling
-Based on the skewness and outliers observed in the numerical variables, we will apply a log transformation to the price and payment_value_total variables to reduce skewness and mitigate the influence of extreme values. This will help improve the performance of distance-based models and ensure that the data is more normally distributed for modeling. We will also consider grouping the customer_state variable into broader regions to reduce sparsity and improve model performance, especially for models that may struggle with high-cardinality categorical variables.
+state_counts <- sort(table(orders_enriched$customer_state), decreasing = TRUE)
+barplot(state_counts, las = 2, main = "Orders by Customer State",
+        col = "steelblue", cex.names = 0.7, ylab = "Count")
+
+seller_state_counts <- sort(table(orders_enriched$seller_state), decreasing = TRUE)
+barplot(seller_state_counts, las = 2, main = "Sellers by State",
+        col = "coral", cex.names = 0.7, ylab = "Count")
+
+cat_counts <- sort(table(orders_enriched$product_category_name_english),
+                   decreasing = TRUE)
+barplot(head(cat_counts, 20), las = 2, main = "Top 20 Product Categories",
+        col = "steelblue", cex.names = 0.55, ylab = "Count")
+
+par(mfrow = c(1, 1))
+```
+
+Both customer and seller activity are heavily concentrated in São Paulo (SP),
+which accounts for approximately 40% of orders and the plurality of sellers.
+This geographic concentration is relevant for our clustering stage — SP-based
+sellers may exhibit systematically different logistics profiles to sellers in
+more remote states. Product categories show a similarly long-tail distribution,
+with bed/bath/table and health & beauty dominating by volume. We retain the
+raw category variable as a predictor in the classification model without
+further consolidation, as Random Forest can handle high-cardinality categoricals
+natively.
+
+
+## Data transformation
+
 
 ## Numerical variable transformations
 ```{r numerical-transformations}
+# check skewness before transformation
+skewness(orders_enriched$price, na.rm = TRUE)
+skewness(orders_enriched$payment_value_total, na.rm = TRUE)
+skewness(orders_enriched$freight_value, na.rm = TRUE)
+skewness(orders_enriched$product_weight_g, na.rm = TRUE)
 # Log transformation for skewed variables
 orders_enriched$price_log <- log1p(orders_enriched$price)
 orders_enriched$payment_value_total_log <- log1p(orders_enriched$payment_value_total)
+orders_enriched$freight_value_log <- log1p(orders_enriched$freight_value)
+orders_enriched$product_weight_g_log <- log1p(orders_enriched$product_weight_g)
 # Check skewness after transformation
 skewness(orders_enriched$price_log, na.rm = TRUE)
 skewness(orders_enriched$payment_value_total_log, na.rm = TRUE)
+skewness(orders_enriched$freight_value_log, na.rm = TRUE)
+skewness(orders_enriched$product_weight_g_log, na.rm = TRUE)
 ```
 
-## Proving the Business Problem: The Impact of Late Deliveries
-Before building predictive models, we must empirically validate our core business assumption: do delayed deliveries actually drive bad reviews? 
+# Feature Engineering
 
-First, we will merge the review data, convert our timestamp columns to date objects, and calculate the exact delay for each order.
+## Seller-Level Feature Engineering
+
+The first stage of our analytical pipeline requires building a performance 
+profile for each seller. Rather than analysing individual orders in isolation, 
+we aggregate historical order data to the seller level, capturing each seller's 
+logistics behaviour across all their past orders. These features will serve as 
+the input to our K-Means clustering model.
+
+We engineer four features that capture distinct dimensions of seller performance:
+
+- **Late rate:** the proportion of a seller's orders delivered after the 
+  estimated date — our primary measure of reliability
+- **Avg dispatch days:** the average number of days between order purchase and 
+  carrier handoff — captures how quickly a seller processes and ships orders
+- **Avg freight cost:** the average shipping cost charged across a seller's 
+  orders — a proxy for logistics complexity and geographic reach
+- **Order volume:** the total number of fulfilled orders — distinguishes 
+  established sellers from low-activity ones whose metrics may be unreliable
+
+```{r seller-feature-engineering}
+# Build a seller-level performance profile from order-level data
+
+# binary late flag at order level (numeric for aggregation)
+orders_enriched$is_late_numeric <- ifelse(
+  orders_enriched$is_late == "Late", 1, 0
+)
+
+# (days between purchase and carrier handoff)
+orders_enriched$dispatch_days <- as.numeric(difftime(
+  orders_enriched$order_delivered_carrier_date,
+  orders_enriched$order_purchase_timestamp,
+  units = "days"
+))
+
+# Aggregate to seller level
+seller_profiles <- data.frame(
+  seller_id = unique(orders_enriched$seller_id)
+)
+
+# Late delivery rate per seller
+seller_profiles$late_rate <- tapply(
+  orders_enriched$is_late_numeric,
+  orders_enriched$seller_id,
+  mean, na.rm = TRUE
+)[seller_profiles$seller_id]
+
+# Average dispatch speed per seller
+seller_profiles$avg_dispatch_days <- tapply(
+  orders_enriched$dispatch_days,
+  orders_enriched$seller_id,
+  mean, na.rm = TRUE
+)[seller_profiles$seller_id]
+
+# Average freight cost per seller
+seller_profiles$avg_freight_log <- tapply(
+  orders_enriched$freight_value_log,
+  orders_enriched$seller_id,
+  mean, na.rm = TRUE
+)[seller_profiles$seller_id]
+
+# Order volume per seller
+seller_profiles$order_volume <- tapply(
+  orders_enriched$is_late_numeric,
+  orders_enriched$seller_id,
+  length
+)[seller_profiles$seller_id]
+
+# Remove sellers with fewer than 10 orders
+# Sellers with very few orders produce statistically unreliable rate estimates
+# (e.g. 1 late delivery out of 2 orders = 50% late rate, which is misleading)
+cat("Sellers before volume filter:", nrow(seller_profiles), "\n")
+seller_profiles <- seller_profiles[seller_profiles$order_volume >= 10, ]
+cat("Sellers after volume filter:", nrow(seller_profiles), "\n")
+cat("Orders covered by remaining sellers:", 
+    sum(orders_enriched$seller_id %in% seller_profiles$seller_id), "\n")
+
+# Check for missing values in seller profiles
+cat("\nMissing values in seller profiles:\n")
+print(colSums(is.na(seller_profiles)))
+
+# Inspect the distributions
+summary(seller_profiles[, c("late_rate", "avg_dispatch_days", 
+                              "avg_freight_log", "order_volume")])
+```
+
+The distributions of these seller features reveal important patterns before 
+we proceed to clustering:
+```{r seller-profile-distributions}
+par(mfrow = c(2, 2))
+
+hist(seller_profiles$late_rate, breaks = 30,
+     main = "Late Delivery Rate", 
+     xlab = "Proportion of Late Orders",
+     col = "steelblue")
+
+hist(seller_profiles$avg_dispatch_days, breaks = 30,
+     main = "Average Dispatch Speed",
+     xlab = "Days from Purchase to Carrier",
+     col = "steelblue")
+
+hist(seller_profiles$avg_freight_log, breaks = 30,
+     main = "Average Freight Cost",
+     xlab = "R$ Freight Value",
+     col = "steelblue")
+
+hist(seller_profiles$order_volume, breaks = 30,
+     main = "Order Volume",
+     xlab = "Number of Orders",
+     col = "steelblue")
+
+par(mfrow = c(1, 1))
+```
+
+## Scaling for Clustering
+
+K-Means is a distance-based algorithm and is therefore sensitive to the scale 
+of input features. A seller with an average freight cost of R$50 would 
+dominate distance calculations over a late rate expressed as a proportion 
+between 0 and 1, simply due to the difference in units rather than any 
+meaningful difference in importance. We therefore standardise all four 
+features to zero mean and unit variance before clustering.
+```{r seller-profile-scaling}
+# Remove NAs before scaling
+seller_profiles_clean <- na.omit(seller_profiles)
+cat("Sellers lost to NA removal:", 
+    nrow(seller_profiles) - nrow(seller_profiles_clean), "\n")
+
+# Scale features (exclude seller_id)
+seller_scaled <- scale(
+  seller_profiles_clean[, c("late_rate", "avg_dispatch_days",
+                              "avg_freight_log", "order_volume")]
+)
+
+# Confirm zero mean and unit variance
+round(apply(seller_scaled, 2, mean), 6)
+round(apply(seller_scaled, 2, sd), 3)
+```
+
+## PCA Feasibility Assessment
+
+Before clustering, we assess whether dimensionality reduction via PCA is 
+appropriate. With only four features, PCA is unlikely to dramatically simplify 
+the input space — however it serves two purposes here: it reveals how much 
+variance each feature contributes, and it checks whether any features are 
+redundant (highly correlated), which would justify exclusion before clustering.
+```{r pca-assessment}
+pca_result <- prcomp(seller_scaled, center = FALSE, scale. = FALSE)
+
+# Variance explained by each component
+pca_summary <- summary(pca_result)
+print(pca_summary)
+
+# Scree plot
+plot(pca_summary$importance[2, ], 
+     type = "b", pch = 19,
+     xlab = "Principal Component",
+     ylab = "Proportion of Variance Explained",
+     main = "Scree Plot — Seller Profile PCA")
+
+# Loadings: which features drive each component?
+print(pca_result$rotation)
+
+# Correlation matrix to check for redundancy
+cor_matrix <- cor(seller_profiles_clean[, c("late_rate", "avg_dispatch_days",
+                                              "avg_freight_log", "order_volume")])
+print(round(cor_matrix, 3))
+```
+
+If the first two components explain more than 80% of variance, we use the PCA 
+scores as clustering input. If not — meaning all four features contribute 
+independently — we proceed with the full scaled feature set, as discarding 
+features would lose meaningful signal. We reflect on this decision after 
+inspecting the scree plot output.
+
+## K-Means Seller Clustering
+
+With seller profiles scaled and PCA assessed, we now cluster sellers into 
+performance tiers using K-Means. We determine the optimal number of clusters 
+using the elbow method on total within-cluster sum of squares.
+```{r seller-clustering}
+set.seed(42)
+
+# Elbow method — test k from 1 to 10
+wss <- sapply(1:10, function(k) {
+  kmeans(seller_scaled, centers = k, nstart = 25)$tot.withinss
+})
+
+plot(1:10, wss, type = "b", pch = 19,
+     xlab = "Number of Clusters (k)",
+     ylab = "Total Within-Cluster SS",
+     main = "Elbow Method for Optimal k")
+
+# Fit final model — adjust k based on elbow plot
+set.seed(42)
+k_optimal <- 4  # update after inspecting elbow plot
+km_sellers <- kmeans(seller_scaled, centers = k_optimal, nstart = 25)
+
+# Assign cluster labels back to seller profiles
+seller_profiles_clean$cluster <- km_sellers$cluster
+
+# Inspect cluster means to interpret what each cluster represents
+cluster_means <- aggregate(
+  cbind(late_rate, avg_dispatch_days, avg_freight_log, order_volume) ~ cluster,
+  data = seller_profiles_clean,
+  FUN = mean
+)
+print(round(cluster_means, 3))
+
+# Cluster sizes
+table(seller_profiles_clean$cluster)
+```
+```{r seller-cluster-interpretation}
+# Visualise clusters using factoextra template
+clusters <- km_sellers
+cluster_plot_data <- seller_profiles_clean[, !names(seller_profiles_clean) %in% c("seller_id", "cluster"), drop = FALSE]
+
+factoextra::fviz_cluster(
+  object = clusters,
+  data = cluster_plot_data,
+  geom = "point",
+  ellipse.type = "convex",
+  ggtheme = theme_bw()
+)
+
+# Assign interpretable names based on cluster_means output
+
+seller_profiles_clean$cluster_label <- dplyr::case_when(
+  # bc of the high freight cost
+  seller_profiles_clean$cluster == 1 ~ "Premium_Freight",
+  # bc of the high late rate and slow dispatch
+  seller_profiles_clean$cluster == 2 ~ "High_Risk",
+  # bc of the low late rate and fast dispatch, even if freight is not the cheapest
+  seller_profiles_clean$cluster == 3 ~ "High_Reliability",
+  # bc of the high order volume but average late rate and dispatch speed
+  seller_profiles_clean$cluster == 4 ~ "High_Volume",
+  TRUE ~ "Unknown"
+)
+
+cat("\nSeller segment distribution:\n")
+print(table(seller_profiles_clean$cluster_label))
+```
+
+## Mapping Seller Segments Back to Orders
+
+The seller cluster labels are now joined back to the main orders dataset, 
+making the seller's performance tier available as a feature in the 
+classification model. This is the key link between Stage 1 (unsupervised 
+seller segmentation) and Stage 2 (supervised order-level prediction).
+```{r map-clusters-to-orders}
+# Join cluster labels onto orders
+orders_enriched <- merge(
+  orders_enriched,
+  seller_profiles_clean[, c("seller_id", "cluster_label")],
+  by = "seller_id",
+  all.x = TRUE
+)
+
+# Orders from sellers excluded by the volume filter will have NA cluster
+cat("Orders with cluster assigned:", 
+    sum(!is.na(orders_enriched$cluster_label)), "\n")
+cat("Orders without cluster (low-volume sellers):", 
+    sum(is.na(orders_enriched$cluster_label)), "\n")
+
+# Assign low-volume sellers their own segment rather than dropping them
+orders_enriched$cluster_label[is.na(orders_enriched$cluster_label)] <- "Low_Volume"
+
+# Check late rate by cluster — does segmentation separate risk levels?
+aggregate(is_late_numeric ~ cluster_label, 
+          data = orders_enriched, 
+          FUN = mean)
+```
+
+The validation confirms the clustering has successfully separated seller risk levels. The High_Risk segment shows a late delivery rate of 16.2% — more than three times the 5.2% observed in the High_Reliability segment. This suggests that the seller-level features we engineered are meaningful predictors of delivery performance, and that our clustering has effectively captured this signal in a way that can be leveraged for order-level forecasting.
+
+# Modeling
+
+## Model 1 — Random Forest
+
+## Model 2 Logistic Regression
+
+## Comparison
+
+# Conclusion
