@@ -91,8 +91,8 @@ merge_olist_data <- function( orders_frame, translation_frame, order_items_frame
 
   # merge enriched orders with enriched order items since orders are the main unit of analysis for our project
   order_items_enriched <- merge(
-    order_items_enriched,
     orders_enriched,
+    order_items_enriched,
     by = "order_id",
     all.x = TRUE
   )
