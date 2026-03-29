@@ -42,7 +42,7 @@ late_rate <- round(mean(orders_enriched$is_late == "Late") * 100, 1)
 # Introduction of the Business Problem
 
 ## The Business Context
-Olist operates as a multi-seller marketplace. Like many e-commerce platforms, Olist suffers from delayed deliveries (Across the dataset, `r late_rate`% of delivered orders arrived after the estimated delivery date.), which inevitably leads to poor customer reviews, platform churn, and high customer support costs. Because Olist does not own the inventory or directly control the dispatch process, the root cause of these delays often stems from individual seller behavior (e.g., poor logistics management, slow processing times). 
+The world has become increasingly dominated by online multi-seller marketplaces, in Brasil one of the major platforms is Olist. Like many e-commerce platforms, Olist suffers from delayed deliveries (Across the dataset, `r late_rate`% of delivered orders arrived after the estimated delivery date.), which inevitably leads to poor customer reviews, platform churn, and high customer support costs. Because Olist does not own the inventory or directly control the dispatch process, the root cause of these delays often stems from individual seller behavior (e.g., poor logistics management, slow processing times). 
 
 ## The Problem
 Currently, Olist's approach to delayed deliveries is purely reactive—dealing with angry customers *after* the estimated delivery date has already been missed. To reduce support costs and protect the platform's brand reputation, Olist needs a proactive mechanism to identify at-risk orders before they fail, and a strategic framework to manage underperforming sellers.
@@ -84,10 +84,10 @@ barplot(
 ```
 
 ## The Analytics Task
-We aim to adopt a two-stage analytical approach to transition Olist from reactive to proactive logistics management:
+The aim of this analysis is to adopt a two-stage analytical approach to transition Olist from reactive to proactive logistics management. Attempting to predict and in turn prevent delays before they occur, This shall be done as such:
 
-1. **Unsupervised Learning (Strategic Seller Segmentation):** First, we will engineer features to capture historical logistics performance and pricing behavior at the *seller level* (e.g., average delay rate, average freight cost, dispatch speed). We will use **K-Means Clustering** to segment our sellers into distinct performance tiers (e.g., "High-Reliability," "Slow & Cheap," "High-Risk").
-2. **Supervised Learning (Tactical Order Forecasting):** Second, we will map these seller segments back to the individual order level. We will use these segments as a key predictor in a classification model (such as a Random Forest or Logistic Regression) to forecast whether a *future* individual order is likely to be delivered late.
+1. **Unsupervised Learning (Strategic Seller Segmentation):** First, the features will be engineered to capture historical logistics performance and pricing behavior at the *seller level* (e.g., average delay rate, average freight cost, dispatch speed). Then the **K-Means Clustering** shall be used to segment the sellers into distinct performance tiers (e.g., "High-Reliability," "Slow & Cheap," "High-Risk").
+2. **Supervised Learning (Tactical Order Forecasting):** Second, these sellers segments will be mapped back to the individual order level. These segments will be used as a key predictor in a classification model (such as a Random Forest or Logistic Regression) to forecast whether a *future* individual order is likely to be delivered late.
 
 **Business Impact:** This pipeline enables a dual-pronged business strategy. Strategically, Olist can use the seller clusters to penalize or coach "High-Risk" sellers (addressing the root cause). Tactically, the predictive model allows Olist's customer service team to identify high-risk orders the moment they are placed, enabling proactive communication with the customer or the deployment of expedited shipping interventions (addressing the symptoms).
 
