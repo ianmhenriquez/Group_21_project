@@ -149,7 +149,7 @@ shall be done as such:
 2.  **Supervised Learning (Tactical Order Forecasting):** Second, these
     sellers segments will be mapped back to the individual order level.
     These segments will be used as a key predictor in a classification
-    model (such as a Random Forest or Logistic Regression) to forecast
+    model (such as a Random Forest or decision tree) to forecast
     whether a *future* individual order is likely to be delivered late.
 
 **Business Impact**
@@ -305,30 +305,7 @@ cat("Remaining NAs after imputation:", sum(is.na(orders_enriched)), "\n")
 
 ### Numerical Variables
 
-```{r outliers-skewness-distributions}
-
-# check skewness
-num_vars <- orders_enriched[, sapply(orders_enriched, is.numeric)]
-
-skewness_summary <- data.frame(
-  variable = names(num_vars),
-  mean     = sapply(num_vars, mean, na.rm = TRUE),
-  median   = sapply(num_vars, median, na.rm = TRUE),
-  sd       = sapply(num_vars, sd, na.rm = TRUE),
-  skewness = sapply(num_vars, skewness, na.rm = TRUE)
-)
-print(skewness_summary)
-
-# DISTRIBUTIONS: NUMERICAL VARIABLES
-# Faceted histograms for all numeric variables at once
-num_long <- tidyr::pivot_longer(num_vars, everything(), 
-                                 names_to = "variable", values_to = "value")
-
-ggplot(num_long, aes(x = value)) +
-  geom_histogram(bins = 40, fill = "steelblue", color = "white") +
-  facet_wrap(~ variable, scales = "free") +
-  labs(title = "Distribution of Numerical Variables", x = NULL, y = "Count") +
-  theme_minimal()
+```{r outliers-skewness-distributions echo=FALSE, fig.height=10}
 
 # LOG TRANSFORMATION CHECK for skewed vars
 # Visual before/after for price, payment_value_total, freight_value, and product_weight_g 
@@ -561,13 +538,6 @@ pca_result <- prcomp(seller_scaled, center = FALSE, scale. = FALSE)
 pca_summary <- summary(pca_result)
 print(pca_summary)
 
-# Scree plot
-plot(pca_summary$importance[2, ], 
-     type = "b", pch = 19,
-     xlab = "Principal Component",
-     ylab = "Proportion of Variance Explained",
-     main = "Scree Plot — Seller Profile PCA")
-
 # Loadings: which features drive each component?
 print(pca_result$rotation)
 
@@ -694,10 +664,118 @@ has effectively captured this signal in a way that can be leveraged for
 order-level forecasting.
 
 # 6. Modeling
+```{r modeling-data-split}
+# Prepare modeling dataset with engineered features
+model_data <- orders_enriched[, c(
+  "is_late",              # target
+  "cluster_label",        # seller segment — key engineered feature
+  "price_log",            # transformed price
+  "freight_value_log",    # transformed freight
+  "payment_value_total_log", # transformed payment
+  "payment_installments_max",
+  "product_weight_g_log",
+  "product_length_cm",
+  "product_height_cm",
+  "product_width_cm",
+  "customer_state",
+  "seller_state"
+)]
 
-## Model 1 — Random Forest
+model_data <- na.omit(model_data)
+model_data$is_late <- factor(model_data$is_late, levels = c("On_Time", "Late"))
 
-## Model 2 Logistic Regression
+# Train/test split — 70/30, stratified on is_late
+set.seed(42)
+split <- initial_split(model_data, prop = 0.7, strata = "is_late")
+train_data <- training(split)
+test_data  <- testing(split)
+
+cat("Training set size:", nrow(train_data), "\n")
+cat("Test set size:    ", nrow(test_data), "\n")
+cat("Late rate (train):", round(mean(train_data$is_late == "Late") * 100, 1), "%\n")
+cat("Late rate (test): ", round(mean(test_data$is_late == "Late") * 100, 1), "%\n")
+
+# Convert categorical variables to factors for modeling
+cat_cols <- c("cluster_label", "customer_state", "seller_state")
+for (col in cat_cols) {
+  train_data[[col]] <- as.factor(train_data[[col]])
+  test_data[[col]]  <- as.factor(test_data[[col]])
+}
+```
+
+## Model 1 — Decision Tree
+```{r decision-tree-modeling}
+# Fit a simple decision tree using C5.0
+set.seed(42)
+dt_model <- C50::C5.0(
+  is_late ~ cluster_label + price_log + freight_value_log + payment_value_total_log
+    + payment_installments_max + product_weight_g_log + product_length_cm
+    + product_height_cm + product_width_cm + customer_state
+    + seller_state, 
+  data = train_data
+)
+print(dt_model)
+# Predict on test set
+dt_preds <- predict(dt_model, test_data)
+# Confusion matrix
+confusionMatrix(dt_preds, test_data$is_late, positive = "Late")
+```
+
+
+
+## Model 2 - Random Forest
+```{r random-forest-modeling}
+# Fit Random Forest with class weights to address imbalance
+set.seed(42)
+rf_model <- randomForest(
+  is_late ~ .,
+  data = train_data,
+  ntree = 500,
+  classwt = c("On_Time" = 1, "Late" = 10), # weight minority class
+  importance = TRUE
+)
+
+print(rf_model)
+
+# 5. Predict on test set
+rf_preds <- predict(rf_model, test_data)
+rf_probs <- predict(rf_model, test_data, type = "prob")[, "Late"]
+
+# 6. Confusion matrix
+confusionMatrix(rf_preds, test_data$is_late, positive = "Late")
+
+# 7. Variable importance
+varImpPlot(rf_model, main = "Random Forest — Variable Importance")
+
+# aint looking good, so i'm testing out different threshold to see if the result can be better
+
+# Test multiple thresholds and compare
+thresholds <- c(0.05, 0.10, 0.15, 0.20, 0.25, 0.30)
+
+threshold_results <- data.frame(
+  threshold   = thresholds,
+  sensitivity = NA,
+  specificity = NA,
+  precision   = NA,
+  balanced_acc = NA
+)
+
+for (i in seq_along(thresholds)) {
+  preds <- as.factor(ifelse(rf_probs > thresholds[i], "Late", "On_Time"))
+  preds <- factor(preds, levels = c("Late", "On_Time"))
+  
+  cm <- confusionMatrix(preds, test_data$is_late, positive = "Late")
+  
+  threshold_results$sensitivity[i]  <- cm$byClass["Sensitivity"]
+  threshold_results$specificity[i]  <- cm$byClass["Specificity"]
+  threshold_results$precision[i]    <- cm$byClass["Pos Pred Value"]
+  threshold_results$balanced_acc[i] <- cm$byClass["Balanced Accuracy"]
+}
+
+print(round(threshold_results, 3))
+# aight so this aint predicting shittt, but we can argue that if we set a low threshold (0.05) this can be used as a safety net to flag high-risk orders for manual review, even if it means a higher false positive rate. This is a common trade-off in imbalanced classification problems where the cost of missing a positive case (a late delivery) is much higher than the cost of a false alarm (flagging an on-time delivery as late). We do have to make the business case that the cost of false positives (e.g., unnecessary customer outreach, manual review time) is justified
+```
+
 
 ## Comparison
 

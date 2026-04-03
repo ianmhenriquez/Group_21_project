@@ -27,7 +27,7 @@ install_and_load <- function(){
         options(repos = r)}
     )
     # Install the packages used in this workbook:
-    packages <- c("C50", "ggplot2", "gmodels", "Hmisc", "randomForest", "rsample", "e1071", "tidyr", "factoextra")
+    packages <- c("C50", "ggplot2", "gmodels", "Hmisc", "randomForest", "rsample", "e1071", "tidyr", "factoextra", "caret")
     for (i in packages) {
         if (!require(i, character.only = TRUE)) {
             install.packages(i, dependencies = TRUE)
