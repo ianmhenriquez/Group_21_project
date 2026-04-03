@@ -305,7 +305,7 @@ cat("Remaining NAs after imputation:", sum(is.na(orders_enriched)), "\n")
 
 ### Numerical Variables
 
-```{r outliers-skewness-distributions echo=FALSE, fig.height=10}
+```{r outliers-skewness-distributions, echo=FALSE}
 
 # LOG TRANSFORMATION CHECK for skewed vars
 # Visual before/after for price, payment_value_total, freight_value, and product_weight_g 
