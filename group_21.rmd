@@ -382,6 +382,8 @@ skewness(orders_enriched$product_weight_g_log, na.rm = TRUE)
 
 # 5. Feature Engineering Ian/Philippe
 
+# Eat my ahh BUUMMMM
+
 ## Seller-Level Feature Engineering
 
 The first stage of our analytical pipeline requires building a
