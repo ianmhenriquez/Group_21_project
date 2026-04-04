@@ -126,7 +126,7 @@ Olist needs to implement a proactive mechanism to identify at-risk
 orders before they fail, as well as a strategic framework to manage
 underperforming sellers.
 
-# 2. Data Analysis
+# 2. Data Analysis Giannis/Jonas
 
 Having covered the problem and goal of the project, as well as having
 obtained the Olist eCommerce data, focus may now be shifted towards the
@@ -152,7 +152,7 @@ shall be done as such:
     model (such as a Random Forest or decision tree) to forecast whether
     a *future* individual order is likely to be delivered late.
 
-**Business Impact**
+**Business Impact** 
 
 This pipeline enables a dual-pronged business strategy. Strategically,
 Olist can use the seller clusters to penalize or coach "High-Risk"
@@ -274,7 +274,7 @@ cat("Late rate:", round(mean(orders_enriched$is_late == "Late") * 100, 1), "%\n"
 cat("Total labelled orders:", nrow(orders_enriched), "\n")
 ```
 
-# 4. Data Exploration
+# 4. Data Exploration Philippe
 
 ## Missing values
 
@@ -380,7 +380,9 @@ skewness(orders_enriched$freight_value_log, na.rm = TRUE)
 skewness(orders_enriched$product_weight_g_log, na.rm = TRUE)
 ```
 
-# 5. Feature Engineering
+# 5. Feature Engineering Ian/Philippe
+
+A
 
 ## Seller-Level Feature Engineering
 
@@ -501,7 +503,7 @@ hist(seller_profiles$order_volume, breaks = 30,
 par(mfrow = c(1, 1))
 ```
 
-## Scaling for Clustering
+## Scaling for Clustering 
 
 K-Means is a distance-based algorithm and is therefore sensitive to the
 scale of input features. A seller with an average freight cost of R\$50
@@ -668,7 +670,7 @@ meaningful predictors of delivery performance, and that our clustering
 has effectively captured this signal in a way that can be leveraged for
 order-level forecasting.
 
-# 6. Modeling
+# 6. Modeling Giannis/Joeri
 
 A
 
