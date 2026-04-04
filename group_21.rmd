@@ -126,7 +126,7 @@ Olist needs to implement a proactive mechanism to identify at-risk
 orders before they fail, as well as a strategic framework to manage
 underperforming sellers.
 
-# 2. Data Analytics
+# 2. Data Analysis
 
 Having covered the problem and goal of the project, as well as having
 obtained the Olist eCommerce data, focus may now be shifted towards the
@@ -149,8 +149,8 @@ shall be done as such:
 2.  **Supervised Learning (Tactical Order Forecasting):** Second, these
     sellers segments will be mapped back to the individual order level.
     These segments will be used as a key predictor in a classification
-    model (such as a Random Forest or decision tree) to forecast
-    whether a *future* individual order is likely to be delivered late.
+    model (such as a Random Forest or decision tree) to forecast whether
+    a *future* individual order is likely to be delivered late.
 
 **Business Impact**
 
@@ -226,7 +226,12 @@ knitr::kable(
 
 # 3. Data Preparation
 
-With the goal being to model an improved delays system in order to increase customer satisfaction, and the variables now analysed, the shift may be made towards preparing the data. From filtering unnecessary or completely missing data, to restructuring, merging, or resorting incomplete data, this chapter shall prepare the data for the Feature Engineering.
+With the goal being to model an improved delays system in order to
+increase customer satisfaction, and the variables now analysed, the
+shift may be made towards preparing the data. From filtering unnecessary
+or completely missing data, to restructuring, merging, or resorting
+incomplete data, this chapter shall prepare the data for the Feature
+Engineering.
 
 ## Dataset Overview and Selection
 
@@ -664,6 +669,13 @@ has effectively captured this signal in a way that can be leveraged for
 order-level forecasting.
 
 # 6. Modeling
+
+A
+
+## Assumption Comparison
+
+A
+
 ```{r modeling-data-split}
 # Prepare modeling dataset with engineered features
 model_data <- orders_enriched[, c(
@@ -704,6 +716,9 @@ for (col in cat_cols) {
 ```
 
 ## Model 1 — Decision Tree
+
+A
+
 ```{r decision-tree-modeling}
 # Fit a simple decision tree using C5.0
 set.seed(42)
@@ -721,9 +736,10 @@ dt_preds <- predict(dt_model, test_data)
 confusionMatrix(dt_preds, test_data$is_late, positive = "Late")
 ```
 
-
-
 ## Model 2 - Random Forest
+
+A
+
 ```{r random-forest-modeling}
 # Fit Random Forest with class weights to address imbalance
 set.seed(42)
@@ -777,9 +793,17 @@ print(round(threshold_results, 3))
 ```
 
 
-## Comparison
+## Model Reflection
+
+A
+
+## Model Output Comparison
+
+A
 
 # 7. Conclusion
+
+A
 
 # 8. Bibliography
 
