@@ -152,7 +152,7 @@ shall be done as such:
     model (such as a Random Forest or decision tree) to forecast whether
     a *future* individual order is likely to be delivered late.
 
-**Business Impact** 
+**Business Impact**
 
 This pipeline enables a dual-pronged business strategy. Strategically,
 Olist can use the seller clusters to penalize or coach "High-Risk"
@@ -228,10 +228,10 @@ knitr::kable(
 
 With the goal being to model an improved delays system in order to
 increase customer satisfaction, and the variables now analysed, the
-shift may be made towards preparing the data. From filtering unnecessary
-or completely missing data, to restructuring, merging, or resorting
-incomplete data, this chapter shall prepare the data for the Feature
-Engineering.
+shift may be made towards preparing the data. The primary goal within
+this section is to merge dataspoints which may be of relavence to
+eachother in the broader context of customer satisfaction. This will
+allow for further filtering down the line.
 
 ## Dataset Overview and Selection
 
@@ -276,7 +276,21 @@ cat("Total labelled orders:", nrow(orders_enriched), "\n")
 
 # 4. Data Exploration Philippe
 
+With an overview of the data now available extra attention may be given
+to what may be found in the data. From analyzing it the choices may then
+be made to further filter and remove unnecessary or completely missing
+data, as well as restructuring- or resorting data when they compliment
+each other. Overall, this chapter shall prepare the data for Feature
+Engineering and its subsequent steps towards modelling.
+
 ## Missing values
+
+Firstly the missing variables may be reassociated, which is done for any
+and all orders missing at least one of their data points. This is done
+as orders with a missing variable may still contain useful data inn the
+case that the delivery process was still commenced and even ultimately
+fulfilled. Data points with majority of their variables missing are
+still removed, though this number is minimal.
 
 ```{r missing-values}
 # Summary of missing values
@@ -290,9 +304,9 @@ missing_summary <- missing_summary[order(-missing_summary$pct_missing), ]
 print(missing_summary)
 ```
 
-Since these correspond to products with no physical measurements
-recorded in the source they will be imputed with the median value for
-each dimension.
+In the case of products missing pysical measurements they shall be
+imputed with the median value of the database. This is done for each
+individual physical measurement.
 
 ```{r impute-dimensions}
 dim_cols <- c("product_weight_g", "product_length_cm",
@@ -308,7 +322,17 @@ cat("Remaining NAs after imputation:", sum(is.na(orders_enriched)), "\n")
 
 ## Distributions and Skewness
 
+With the missing variables eliminated a point of attention may be given
+to the distribution and skewness of the data. As it would not be an
+ideal scenario for individuals buying or selling extremely high or low
+cost items to influence the value of products being delivered, or
+alternatively for a singular individual who mass purchases a plethora of
+items to skew the order amount.
+
 ### Numerical Variables
+
+Prior to commencing the correction on the data's skewness distribution,
+the initial
 
 ```{r outliers-skewness-distributions, echo=FALSE}
 
@@ -503,7 +527,7 @@ hist(seller_profiles$order_volume, breaks = 30,
 par(mfrow = c(1, 1))
 ```
 
-## Scaling for Clustering 
+## Scaling for Clustering
 
 K-Means is a distance-based algorithm and is therefore sensitive to the
 scale of input features. A seller with an average freight cost of R\$50
@@ -773,7 +797,6 @@ rf_probs <- predict(rf_model, test_data, type = "prob")[, "Late"]
 confusionMatrix(rf_preds, test_data$is_late, positive = "Late")
 varImpPlot(rf_model, main = "Random Forest — Variable Importance")
 ```
-
 
 ## Model Reflection
 
