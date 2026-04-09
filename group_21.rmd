@@ -717,6 +717,22 @@ for (col in cat_cols) {
 }
 ```
 
+```{r class-imbalance}
+# Show the imbalance problem explicitly
+cat("--- Class distribution before balancing ---\n")
+print(prop.table(table(train_data$is_late)))
+
+# Apply ROSE oversampling to training data only
+# NEVER apply to test data — test set must reflect real-world distribution
+library(ROSE)
+set.seed(42)
+train_balanced <- ROSE(is_late ~ ., data = train_data, seed = 42)$data
+
+cat("\n--- Class distribution after ROSE ---\n")
+print(prop.table(table(train_balanced$is_late)))
+print(table(train_balanced$is_late))
+```
+
 ## Model 1 — Decision Tree
 
 A
@@ -724,17 +740,15 @@ A
 ```{r decision-tree-modeling}
 # Fit a simple decision tree using C5.0
 set.seed(42)
-dt_model <- C50::C5.0(
-  is_late ~ cluster_label + price_log + freight_value_log + payment_value_total_log
-    + payment_installments_max + product_weight_g_log + product_length_cm
-    + product_height_cm + product_width_cm + customer_state
-    + seller_state, 
-  data = train_data
+dt_model <- C5.0(
+  is_late ~ .,
+  data = train_balanced,  # balanced training data
+  control = C5.0Control(CF = 0.25, minCases = 10)
 )
-print(dt_model)
-# Predict on test set
+# Evaluate on ORIGINAL unbalanced test set
 dt_preds <- predict(dt_model, test_data)
-# Confusion matrix
+dt_probs <- predict(dt_model, test_data, type = "prob")[, "Late"]
+
 confusionMatrix(dt_preds, test_data$is_late, positive = "Late")
 ```
 
@@ -743,55 +757,21 @@ confusionMatrix(dt_preds, test_data$is_late, positive = "Late")
 A
 
 ```{r random-forest-modeling}
-# Fit Random Forest with class weights to address imbalance
 set.seed(42)
 rf_model <- randomForest(
   is_late ~ .,
-  data = train_data,
+  data = train_balanced,  # balanced training data
   ntree = 500,
-  classwt = c("On_Time" = 1, "Late" = 10), # weight minority class
   importance = TRUE
+  # classwt removed — ROSE already handles imbalance
 )
-
 print(rf_model)
 
-# 5. Predict on test set
 rf_preds <- predict(rf_model, test_data)
 rf_probs <- predict(rf_model, test_data, type = "prob")[, "Late"]
 
-# 6. Confusion matrix
 confusionMatrix(rf_preds, test_data$is_late, positive = "Late")
-
-# 7. Variable importance
 varImpPlot(rf_model, main = "Random Forest — Variable Importance")
-
-# aint looking good, so i'm testing out different threshold to see if the result can be better
-
-# Test multiple thresholds and compare
-thresholds <- c(0.05, 0.10, 0.15, 0.20, 0.25, 0.30)
-
-threshold_results <- data.frame(
-  threshold   = thresholds,
-  sensitivity = NA,
-  specificity = NA,
-  precision   = NA,
-  balanced_acc = NA
-)
-
-for (i in seq_along(thresholds)) {
-  preds <- as.factor(ifelse(rf_probs > thresholds[i], "Late", "On_Time"))
-  preds <- factor(preds, levels = c("Late", "On_Time"))
-  
-  cm <- confusionMatrix(preds, test_data$is_late, positive = "Late")
-  
-  threshold_results$sensitivity[i]  <- cm$byClass["Sensitivity"]
-  threshold_results$specificity[i]  <- cm$byClass["Specificity"]
-  threshold_results$precision[i]    <- cm$byClass["Pos Pred Value"]
-  threshold_results$balanced_acc[i] <- cm$byClass["Balanced Accuracy"]
-}
-
-print(round(threshold_results, 3))
-# aight so this aint predicting shittt, but we can argue that if we set a low threshold (0.05) this can be used as a safety net to flag high-risk orders for manual review, even if it means a higher false positive rate. This is a common trade-off in imbalanced classification problems where the cost of missing a positive case (a late delivery) is much higher than the cost of a false alarm (flagging an on-time delivery as late). We do have to make the business case that the cost of false positives (e.g., unnecessary customer outreach, manual review time) is justified
 ```
 
 
