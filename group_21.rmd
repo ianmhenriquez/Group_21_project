@@ -385,10 +385,6 @@ seller_profiles$avg_freight_log <- tapply(
   orders_enriched$freight_value_log, orders_enriched$seller_id,
   mean, na.rm = TRUE)[seller_profiles$seller_id]
 
-seller_profiles$order_volume <- tapply(
-  orders_enriched$order_id, orders_enriched$seller_id,
-  length)[seller_profiles$seller_id]
-
 # Order volume per seller
 seller_profiles$order_volume <- tapply(
   orders_enriched$is_late_numeric,
@@ -614,16 +610,6 @@ The proof-of-concept in Section 1 showed that late deliveries receive substantia
 ### Preparing the Review Text
 
 The Olist reviews are primarily in Portuguese. Since the lexicon-based sentiment tools (`sentimentr`) are designed for English, a different analytical approach is adopted: rather than computing sentiment scores, delivery status (`is_late`) is used as a natural label that separates negative context (late delivery) from positive context (on-time delivery). Topic modelling is then applied to each group separately, and the resulting themes are compared.
-
-```{r text-setup}
-# Additional packages for text analytics
-for (pkg in c("quanteda", "seededlda")) {
-  if (!require(pkg, character.only = TRUE)) {
-    install.packages(pkg, dependencies = TRUE)
-    library(pkg, character.only = TRUE)
-  }
-}
-```
 
 ```{r text-merge-reviews}
 # Merge reviews with delivery status
@@ -944,17 +930,20 @@ A Random Forest is introduced as a structurally different model family. Random F
 
 ```{r random-forest-modeling}
 set.seed(42)
-rf_model <- randomForest::randomForest(
+rf_model <- ranger::ranger(
   is_late ~ .,
   data = train_balanced,  # balanced training data
-  ntree = 500,
-  importance = TRUE
-  # classwt removed — ROSE already handles imbalance
+  num.trees = 500,
+  importance = "impurity",
+  probability = TRUE
 )
 print(rf_model)
 
-rf_preds <- predict(rf_model, test_data)
-rf_probs <- predict(rf_model, test_data, type = "prob")[, "Late"]
+rf_probs <- predict(rf_model, test_data)$predictions[, "Late"]
+rf_preds <- factor(
+  ifelse(rf_probs > 0.5, "Late", "On_Time"),
+  levels = c("On_Time", "Late")
+)
 
 cat("\n-- Confusion matrix: Random Forest --\n")
 gmodels::CrossTable(
@@ -964,8 +953,17 @@ gmodels::CrossTable(
   dnn = c("Actual", "Predicted"))
 
 # Variable importance
-randomForest::varImpPlot(rf_model,
-                         main = "Random Forest — Variable Importance")
+importance_df <- data.frame(
+  variable = names(rf_model$variable.importance),
+  importance = rf_model$variable.importance
+)
+
+importance_df <- importance_df[order(-importance_df$importance), ]
+barplot(importance_df$importance,
+        names.arg = importance_df$variable,
+        horiz = TRUE, las = 1,
+        main = "Ranger — Variable Importance",
+        xlab = "Mean Decrease Gini")
 ```
 
 The variable importance plot reveals which features the Random Forest relies on most for distinguishing late from on-time orders. This is compared to the attribute usage reported by C5.0 to assess whether both model families identify the same key drivers. Agreement between structurally different models strengthens confidence in the identified risk factors, while disagreement warrants closer inspection.
@@ -1054,10 +1052,11 @@ for (i in seq_len(k)) {
   auc_mat[i, "C5.0_Cost"] <- NA_real_  # C5.0 with costs cannot produce probabilities
 
   # -- Random Forest --
-  m4 <- randomForest::randomForest(is_late ~ ., data = train_bal,
-                                    ntree = 500)
-  p4 <- predict(m4, test_fold)
-  p4_prob <- predict(m4, test_fold, type = "prob")[, "Late"]
+  m4 <- ranger::ranger(is_late ~ ., data = train_bal,
+                       num.trees = 500, probability = TRUE)
+  p4_prob <- predict(m4, test_fold)$predictions[, "Late"]
+  p4 <- factor(ifelse(p4_prob > 0.5, "Late", "On_Time"),
+             levels = c("On_Time", "Late"))
   acc_mat[i, "Random_Forest"] <- mean(p4 == test_fold$is_late)
   auc_mat[i, "Random_Forest"] <- as.numeric(pROC::auc(pROC::roc(
     test_fold$is_late, p4_prob, levels = c("On_Time", "Late"),
@@ -1149,35 +1148,30 @@ The two-stage design rests on the claim that seller-level segmentation provides 
 # Prepare data without cluster_label
 model_data_no_cluster <- model_data[, !(names(model_data) %in% "cluster_label")]
 
-acc_with    <- numeric(k)
+# We already calculated these in the previous cross-validation chunk.
+acc_with <- acc_mat[, "Random_Forest"]
+auc_with <- auc_mat[, "Random_Forest"]
+
+# Prepare storage for the "Without Cluster" runs
 acc_without <- numeric(k)
-auc_with    <- numeric(k)
 auc_without <- numeric(k)
 
 for (i in seq_len(k)) {
   test_idx   <- folds[[i]]
 
-  # WITH cluster_label
-  train_w <- ROSE::ROSE(is_late ~ .,
-                         data = model_data[-test_idx, ], seed = 42)$data
-  rf_w    <- randomForest::randomForest(is_late ~ ., data = train_w,
-                                         ntree = 500)
-  pw      <- predict(rf_w, model_data[test_idx, ])
-  pw_prob <- predict(rf_w, model_data[test_idx, ], type = "prob")[, "Late"]
-  acc_with[i] <- mean(pw == model_data[test_idx, "is_late"])
-  auc_with[i] <- as.numeric(pROC::auc(pROC::roc(
-    model_data[test_idx, "is_late"], pw_prob,
-    levels = c("On_Time", "Late"), direction = "<", quiet = TRUE)))
-
   # WITHOUT cluster_label
   train_wo <- ROSE::ROSE(is_late ~ .,
                           data = model_data_no_cluster[-test_idx, ],
                           seed = 42)$data
-  rf_wo    <- randomForest::randomForest(is_late ~ ., data = train_wo,
-                                          ntree = 500)
-  pwo      <- predict(rf_wo, model_data_no_cluster[test_idx, ])
-  pwo_prob <- predict(rf_wo, model_data_no_cluster[test_idx, ],
-                       type = "prob")[, "Late"]
+                          
+
+  rf_wo <- ranger::ranger(is_late ~ ., data = train_wo,
+                             num.trees = 500, probability = TRUE)
+                             
+  pwo_prob <- predict(rf_wo, model_data_no_cluster[test_idx, ])$predictions[, "Late"]
+  pwo <- factor(ifelse(p4_prob > 0.5, "Late", "On_Time"),
+             levels = c("On_Time", "Late"))
+  
   acc_without[i] <- mean(pwo == model_data_no_cluster[test_idx, "is_late"])
   auc_without[i] <- as.numeric(pROC::auc(pROC::roc(
     model_data_no_cluster[test_idx, "is_late"], pwo_prob,
