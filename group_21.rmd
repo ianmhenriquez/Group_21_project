@@ -627,9 +627,12 @@ for (pkg in c("quanteda", "seededlda")) {
 
 ```{r text-merge-reviews}
 # Merge reviews with delivery status
+# Build one row per order label from the enriched table
+order_labels <- unique(orders_enriched[, c("order_id", "is_late")])
+
 review_text <- merge(
   reviews_raw[, c("order_id", "review_score", "review_comment_message")],
-  orders[, c("order_id", "is_late")],
+  order_labels,
   by = "order_id"
 )
 
