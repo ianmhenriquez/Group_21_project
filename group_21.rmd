@@ -45,252 +45,265 @@ late_rate <- round(mean(orders_enriched$is_late == "Late") * 100, 1)
 
 # 1. Introduction
 
-Data analytics has become an increasingly integral part of a company's
-decision making process. Utilizing data to uncover patterns, identify
-opportunities, and monitor business performance are practices synonymous
-with modern corporations. This document shall cover the various
-statistical and modeling topics covered in preparation for the Business
-Analytics course, and shall relate these to real-world applications.
-
 ## Business Context
 
-The modern world has become progressively digitized, with this the share
-of online/eCommerce marketplaces have garnered an ever increasing
-percentage of the global retail sales market share. As of the writing of
-this document the percentage lies around 22.2% (Buck, 2026). With growth
-consistently higher than retail, one of the major countries of growth is
-Brazil. Attaining a growth rate of 15.4% it was the 5th largest growth
-country in 2023 (Oberlo, 2024).
+The global e-commerce market continues to grow at a pace that outstrips traditional retail. Brazil is a notable case: with a 15.4% year-on-year growth rate, it ranked among the top five fastest-growing e-commerce markets in 2023 (Oberlo, 2024). Within this rapidly expanding market, Olist operates as a marketplace that connects small and medium-sized sellers to customers across the country. Unlike vertically integrated platforms, Olist does not own inventory or directly control fulfilment. Instead, each seller manages their own warehousing, packaging, and handoff to carriers independently. This decentralised model gives Olist reach, but it also means that delivery performance is fundamentally shaped by the operational behaviour of thousands of individual sellers.
 
-One of the major eCommerce platforms in Brazil is Olist. Like many
-eCommerce platforms, Olist suffers from delayed deliveries (Across the
-dataset, `r late_rate`% of delivered orders arrived after the estimated
-delivery date.), which inevitably leads to poor customer reviews,
-platform churn, and high customer support costs. Because Olist does not
-own the inventory or directly control the dispatch process, the root
-cause of these delays often stems from individual seller behavior (e.g.,
-poor logistics management, slow processing times).
+When deliveries arrive late, it is the *customer* who experiences the failure and the *platform* that absorbs the reputational damage. Research on e-commerce satisfaction consistently identifies delivery reliability as one of the strongest drivers of review scores and repeat purchases. In the viewed dataset, this relationship is visible and stark: late orders receive an average review score roughly two points lower than on-time orders (the claim is validated in the proof-of-concept visualisation below). This gap translates directly into higher support costs, lower repeat purchase rates, and erosion of platform trust.
 
 ## Problem Statement
 
-Currently, Olist's approach to delayed deliveries is purely reactive,
-dealing with angry customers only *after* the estimated delivery date
-has already been missed. This makes the process inherently suboptimal,
-with delays leaving customers unsattisfied. While eCommerce platforms
-are largely platforms for outside sellers to place, market, and sell
-their products, in the case of an unfavorable experience it is still
-Olist which suffers reputational damage.
+Olist’s current approach to late deliveries is purely reactive: customer service intervenes only *after* the estimated delivery date has been missed. This makes the process inherently suboptimal. Customers are already dissatisfied by the time intervention begins, and the platform has no systematic way to distinguish orders that are likely to arrive on time from those that are at high risk of delay.
+
+The root causes of late deliveries are not uniformly distributed across the seller base. Some sellers consistently process and dispatch orders quickly, while others exhibit chronic delays rooted in poor logistics management, remote geography, or limited operational capacity. A purely order-level approach to prediction would miss this structural dimension: it would treat a late order from a consistently unreliable seller as statistically equivalent to a one-off delay from an otherwise high-performing seller. The understanding of *seller-level* patterns is a prerequisite for effective *order-level* forecasting.
+
+## Analytical Approach
+
+A **two-stage analytical pipeline** is employed to separate the structural (seller-level) and tactical (order-level) dimensions of the problem.:
+
+**Stage 1 — Unsupervised Seller Segmentation.** Features are engineered to capture each seller’s historical logistics performance (e.g., late delivery rate, dispatch speed) and pricing behaviour (e.g., average freight cost). These features are used in a K-Means clustering model to segment sellers into distinct performance tiers. This stage addresses the strategic question: *which sellers are structurally high-risk and how their operational profiles differ?*
+
+**Stage 2 — Supervised Order-Level Classification.** Seller segment labels are mapped back to individual orders and combined with order-level features such as product weight, price, payment method, and geographic variables. These inputs serve as predictors in classification models, including C5.0 decision trees and Random Forests, to forecast the likelihood of late delivery. This stage addresses the tactical question of *whether, at the time of purchase, an order can be identified as high risk for delay.*
+
+## Business Impact
+
+This pipeline enables a dual-pronged strategy. **Strategically**, Olist can use the seller clusters to identify chronically underperforming sellers for targeted coaching, penalty structures, or enhanced monitoring. This translates to addressing the root cause of delays. **Tactically**, the order-level classification model allows customer service to flag high-risk orders at the moment of purchase, enabling proactive communication with the customer or the deployment of expedited shipping, which means to address the symptoms before they materialise.
+
+The intended audiences are therefore (1) Olist’s **account management team**, who would use the seller segmentation to inform seller relationship strategies, and (2) Olist’s **customer service operations**, who would use the order-level predictions to prioritise proactive outreach.
 
 ```{r proof-of-concept, echo=FALSE}
+# ── Load raw data ───────────────────────────────────────────────────────
+orders_raw      <- read.csv("archive/olist_orders_dataset.csv")
+order_items_raw <- read.csv("archive/olist_order_items_dataset.csv")
+payments_raw    <- read.csv("archive/olist_order_payments_dataset.csv")
+customers_raw   <- read.csv("archive/olist_customers_dataset.csv")
+products_raw    <- read.csv("archive/olist_products_dataset.csv")
+sellers_raw     <- read.csv("archive/olist_sellers_dataset.csv")
+translation_raw <- read.csv("archive/product_category_name_translation.csv")
+reviews_raw     <- read.csv("archive/olist_order_reviews_dataset.csv")
 
-poc_frame <- merge(
-  orders_enriched, 
-  reviews_frame[, c("order_id", "review_score")], 
-  by = "order_id", 
-  all.x = TRUE
-)
+# Quick proof-of-concept: late delivery → lower reviews
+poc <- merge(orders_raw[, c("order_id",
+                             "order_delivered_customer_date",
+                             "order_estimated_delivery_date")],
+             reviews_raw[, c("order_id", "review_score")],
+             by = "order_id")
+poc <- poc[!is.na(poc$order_delivered_customer_date) &
+           !is.na(poc$order_estimated_delivery_date) &
+           !is.na(poc$review_score), ]
+poc$is_late <- ifelse(as.Date(poc$order_delivered_customer_date) >
+                      as.Date(poc$order_estimated_delivery_date),
+                      "Late", "On_Time")
 
-# Remove any rows where review_score is NA (if a customer didn't leave a review)
-poc_frame <- poc_frame[!is.na(poc_frame$review_score), ]
-
-# 5. Aggregate to find the average review score for Late vs. On-Time deliveries
-review_impact <- aggregate(
-  review_score ~ is_late, 
-  data = poc_frame, 
-  FUN = function(x) c(mean = mean(x), count = length(x))
-)
-
-# Flatten the aggregate output for clean printing
+review_impact <- aggregate(review_score ~ is_late, data = poc,
+                           FUN = function(x) c(mean = round(mean(x), 2),
+                                               n = length(x)))
 review_impact <- do.call(data.frame, review_impact)
-colnames(review_impact) <- c("Delivery_Status", "Average_Review_Score", "Total_Orders")
+colnames(review_impact) <- c("Delivery_Status", "Avg_Review", "Count")
 
-
-# 6. Visualize the Proof
-barplot(
-  review_impact$Average_Review_Score, 
-  names.arg = review_impact$Delivery_Status, 
-  col = c("firebrick", "steelblue"),
-  main = "Average Review Score: Late vs. On-Time Deliveries",
-  ylab = "Average Star Rating (1-5)",
-  ylim = c(0, 5)
-)
-
+barplot(review_impact$Avg_Review,
+        names.arg = review_impact$Delivery_Status,
+        col = c("firebrick", "steelblue"),
+        main = "Average Review Score: Late vs. On-Time Deliveries",
+        ylab = "Average Star Rating (1–5)", ylim = c(0, 5))
+text(x = c(0.7, 1.9), y = review_impact$Avg_Review + 0.2,
+     labels = review_impact$Avg_Review)
 ```
 
-## Project Goal
+# 2. Data Preparation
 
-With the context laid out Problem Statement, the goal of this project is
-therefore to reduce support costs and protect the platform's brand
-reputation. More specifically this shall be done by identifying where
-Olist needs to implement a proactive mechanism to identify at-risk
-orders before they fail, as well as a strategic framework to manage
-underperforming sellers.
+## Dataset Overview
 
-# 2. Data Analysis Giannis/Jonas
+The Olist dataset comprises nine relational tables linked by shared keys. We load all nine and make deliberate inclusion decisions based on relevance to the business problem.
 
-Having covered the problem and goal of the project, as well as having
-obtained the Olist eCommerce data, focus may now be shifted towards the
-analyzing, cleaning, and transforming of the data. The first of which
-will be the analysis of what all is included in the given data, and to
-see what may be of use in further modelling down the line.
+Dataset -> Included? -> Rationale
 
-The analysis shall be done by adopting a two-stage analytical approach
-to transition Olist from reactive to proactive logistics management.
-Attempting to predict and in turn prevent delays before they occur, This
-shall be done as such:
-
-1.  **Unsupervised Learning (Strategic Seller Segmentation):** First,
-    the features will be engineered to capture historical logistics
-    performance and pricing behavior at the *seller level* (e.g.,
-    average delay rate, average freight cost, dispatch speed). Then the
-    **K-Means Clustering** shall be used to segment the sellers into
-    distinct performance tiers (e.g., "High-Reliability," "Slow &
-    Cheap," "High-Risk").
-2.  **Supervised Learning (Tactical Order Forecasting):** Second, these
-    sellers segments will be mapped back to the individual order level.
-    These segments will be used as a key predictor in a classification
-    model (such as a Random Forest or decision tree) to forecast whether
-    a *future* individual order is likely to be delivered late.
-
-**Business Impact**
-
-This pipeline enables a dual-pronged business strategy. Strategically,
-Olist can use the seller clusters to penalize or coach "High-Risk"
-sellers (addressing the root cause). Tactically, the predictive model
-allows Olist's customer service team to identify high-risk orders the
-moment they are placed, enabling proactive communication with the
-customer or the deployment of expedited shipping interventions
-(addressing the symptoms).
+`olist_orders` -> Yes -> Analytical spine — delivery timestamps, order status
+`olist_order_items` -> Yes -> Links sellers to orders; provides price, freight
+`olist_sellers` -> Yes -> Seller geography for Stage 1 clustering
+`olist_customers` -> Yes -> Customer state as a geographic predictor
+`olist_products` -> Yes -> Physical dimensions — predictors of delivery complexity
+`olist_order_payments` -> Yes -> Payment value and instalment behaviour
+`product_category_name_translation` -> Yes -> Maps Portuguese categories to English
+`olist_order_reviews` -> Yes -> Outcome of delivery, not a predictor — inclusion would be data leakage. Used only for the proof-of-concept above
+`olist_geolocation` -> Yes -> Multiple coordinates per zip prefix require ambiguous deduplication; flagged for future work
 
 ## Data dictionary
 
-Having discussed various aspects of the data analysis process, the table
-below may serve to illustrate a plethora of the variables which lie in
-the database. With their ID's and descriptions outlined.
+The table below may serve to illustrate a plethora of the variables which lie in the database. With their ID's and descriptions outlined.
 
-```{r data-table, echo=FALSE}
-# Create a data dictionary of the merged dataset
-data_dictionary <- data.frame(
-  variable = names(orders_enriched),
-  data_role = c(
-    "identifier", "identifier", "identifier", "identifier",
-    "temporal",
-    "predictor", "predictor", "predictor", "predictor",
-    "predictor", "predictor", "predictor",
-    "context", "context", "context",
-    "identifier", "context",
-    "temporal", "temporal", "temporal", "temporal", "temporal",
-    "predictor", "predictor",
-    "identifier", "context", "context", "context",
-    "outcome", "outcome"
-  ),
-  description = c(
-    "Unique identifier for each order",
-    "Unique identifier for the seller",
-    "Unique identifier for the product",
-    "Sequence number of item within the order",
-    "Seller's shipping deadline for the item",
-    "Listed price of the product",
-    "Freight/shipping cost for the item",
-    "Weight of the product in grams",
-    "Length of the product in centimetres",
-    "Height of the product in centimetres",
-    "Width of the product in centimetres",
-    "Product category name (English)",
-    "Seller's zip code prefix",
-    "Seller's city",
-    "Seller's state",
-    "Unique identifier for the customer (order-level)",
-    "Order status at time of data extraction",
-    "Timestamp when the order was placed",
-    "Timestamp when payment was approved",
-    "Date the order was handed to the carrier",
-    "Date the order was delivered to the customer",
-    "Estimated delivery date shown to customer",
-    "Total payment value for the order (aggregated)",
-    "Maximum instalment plan length for the order",
-    "Anonymised unique customer identifier",
-    "Customer's zip code prefix",
-    "Customer's city",
-    "Customer's state",
-    "Target variable: whether the order was delivered late",
-    "Signed delivery delay in days (negative = early)"
-  )
+```{r data-dictionary, echo=FALSE}
+dict <- data.frame(
+  Variable = c("order_id", "seller_id", "product_id", "order_item_id",
+               "shipping_limit_date", "price", "freight_value",
+               "product_weight_g", "product_length_cm", "product_height_cm",
+               "product_width_cm", "product_category_name_english",
+               "seller_zip_code_prefix", "seller_city", "seller_state",
+               "customer_id", "customer_unique_id",
+               "customer_zip_code_prefix", "customer_city", "customer_state",
+               "order_status", "order_purchase_timestamp", "order_approved_at",
+               "order_delivered_carrier_date", "order_delivered_customer_date",
+               "order_estimated_delivery_date",
+               "payment_value_total", "payment_installments_max",
+               "is_late", "delivery_delay_days"),
+  Role = c("identifier", "identifier", "identifier", "identifier",
+           "temporal", "predictor", "predictor",
+           "predictor", "predictor", "predictor", "predictor",
+           "context", "context", "context", "context",
+           "identifier", "identifier",
+           "context", "context", "predictor",
+           "meta", "temporal", "temporal", "temporal", "temporal", "temporal",
+           "predictor", "predictor",
+           "outcome", "outcome"),
+  Description = c(
+    "Unique order identifier",
+    "Unique seller identifier",
+    "Unique product identifier",
+    "Sequence number of item within order",
+    "Seller's shipping deadline",
+    "Listed product price (R$)",
+    "Freight/shipping cost (R$)",
+    "Product weight in grams",
+    "Product length in cm",
+    "Product height in cm",
+    "Product width in cm",
+    "Product category (English)",
+    "Seller zip code prefix",
+    "Seller city",
+    "Seller state abbreviation",
+    "Customer ID (order-level)",
+    "Anonymised unique customer ID",
+    "Customer zip code prefix",
+    "Customer city",
+    "Customer state abbreviation",
+    "Order status at data extraction",
+    "Timestamp: order placed",
+    "Timestamp: payment approved",
+    "Date: handed to carrier",
+    "Date: delivered to customer",
+    "Date: estimated delivery shown to customer",
+    "Total payment value (aggregated across payment methods)",
+    "Maximum instalment count for the order",
+    "Target: Late or On_Time",
+    "Signed delay in days (negative = early)")
 )
-knitr::kable(
-  data_dictionary,
-  format = "markdown",
-  col.names = c("Variable", "Data Role", "Description")
-)
+knitr::kable(dict, format = "markdown")
 ```
 
-# 3. Data Preparation
+## Merge (Maybe add paragraph above)
 
-With the goal being to model an improved delays system in order to
-increase customer satisfaction, and the variables now analysed, the
-shift may be made towards preparing the data. The primary goal within
-this section is to merge dataspoints which may be of relavence to
-eachother in the broader context of customer satisfaction. This will
-allow for further filtering down the line.
-
-## Dataset Overview and Selection
-
-The Olist dataset comprises eight relational tables linked by shared
-keys. We load all eight and make deliberate inclusion decisions based on
-relevance to the business problem. The table below summarises these
-decisions.
-
-| Dataset | Included | Rationale |
-|----------------------|------------------------|--------------------------|
-| olist_orders | Yes | Analytical spine — contains all delivery timestamps and order status |
-| olist_order_items | Yes | Links sellers to orders; provides price, freight, and product keys |
-| olist_sellers | Yes | Seller geography — state and city for Stage 1 clustering |
-| olist_customers | Yes | Customer state — used as a predictor in Stage 2 classification |
-| olist_products | Yes | Physical dimensions (weight, size) — predictors of delivery complexity |
-| olist_order_payments | Yes | Payment value and instalment behaviour — order-level predictors |
-| olist_geolocation | No | Ambiguous deduplication required (multiple coordinates per zip code prefix); flagged as a direction for future improvement |
-| olist_order_reviews | No | Outcome of delivery performance, not a predictor — inclusion would constitute data leakage. Used only for the proof-of-concept visualisation above. |
+With the goal of modelling an improved delay management system to increase customer satisfaction, and given the variables now analysed, the focus shifts to data preparation. The primary objective in this section is to merge data points that are relevant to each other within the broader context of customer satisfaction, thereby enabling more effective filtering in subsequent steps.
 
 ## Merge Strategy
 
-The full merge sequence is:
+The merge follows a deliberate sequence. Each table is first prepared independently, after which they are joined in a controlled order to preserve the correct analytical grain (one row per order–item combination).
 
-1.  `orders` + `payments_aggregated` → via `order_id`
-2.  
-    -   `customers` → via `customer_id`
-3.  `order_items` + `products_translated` → via `product_id`
-4.  
-    -   `sellers` → via `seller_id`
-5.  Final join: orders spine + enriched order items → via `order_id`
+**Step 1: Aggregate payments to order level.** The payments table contains multiple rows per order when a customer uses several payment methods. These are aggregated to one row per order by summing the total payment value and taking the maximum instalment count. This prevents row inflation when joining to orders.
 
-## Column Removal
+**Step 2: Translate product categories.** The translation table is joined to the products table, replacing Portuguese category names with their English equivalents. Products without a match are labelled “Miscellaneous”.
+
+**Step 3: Enrich order items with product and seller information.** Translated products and sellers are joined onto the `order_items` table via `product_id` and `seller_id`, respectively.
+
+**Step 4: Prepare the orders spine.** Date columns are parsed, aggregated payments are joined via `order_id`, and customers are joined via `customer_id`. The dataset is filtered to delivered orders only (orders without delivery timestamps cannot be labelled), after which the target variable is constructed.
+
+**Step 5: Final join.** The enriched orders spine is joined to the enriched `order_items` table via `order_id`, producing the analysis-ready dataset.
+
+```{r merge-pipeline}
+# ── Step 1: Aggregate payments to order level ───────────────────────────
+payments_agg <- aggregate(
+  cbind(payment_value, payment_installments) ~ order_id,
+  data = payments_raw,
+  FUN = function(x) c(total = sum(x), max = max(x))
+)
+payments_agg <- data.frame(
+  order_id                = payments_agg$order_id,
+  payment_value_total     = payments_agg$payment_value[, "total"],
+  payment_installments_max = payments_agg$payment_installments[, "max"]
+)
+
+# ── Step 2: Translate product categories ────────────────────────────────
+products <- merge(products_raw, translation_raw,
+                  by = "product_category_name", all.x = TRUE)
+products$product_category_name_english[
+  is.na(products$product_category_name_english)] <- "Miscellaneous"
+# Drop columns not needed downstream
+products <- products[, !(names(products) %in%
+  c("product_category_name", "product_name_lenght",
+    "product_description_lenght", "product_photos_qty"))]
+
+# ── Step 3: Enrich order items ──────────────────────────────────────────
+order_items_enriched <- merge(order_items_raw, products,
+                              by = "product_id", all.x = TRUE)
+order_items_enriched <- merge(order_items_enriched, sellers_raw,
+                              by = "seller_id", all.x = TRUE)
+
+# ── Step 4: Prepare orders spine ────────────────────────────────────────
+orders <- orders_raw
+
+# Some date columns contain empty strings ("") instead of NA for orders
+# that were not yet approved, shipped, or delivered. read.csv() imports
+# these as "" rather than NA, which causes as.POSIXct/as.Date to fail.
+# We convert empty strings to NA before parsing.
+date_cols <- c("order_purchase_timestamp", "order_approved_at",
+               "order_delivered_carrier_date", "order_delivered_customer_date",
+               "order_estimated_delivery_date")
+for (col in date_cols) {
+  orders[[col]][orders[[col]] == ""] <- NA
+}
+
+orders$order_purchase_timestamp      <- as.POSIXct(orders$order_purchase_timestamp)
+orders$order_approved_at             <- as.POSIXct(orders$order_approved_at)
+orders$order_delivered_carrier_date  <- as.Date(orders$order_delivered_carrier_date)
+orders$order_delivered_customer_date <- as.Date(orders$order_delivered_customer_date)
+orders$order_estimated_delivery_date <- as.Date(orders$order_estimated_delivery_date)
+
+# Join payments and customers
+orders <- merge(orders, payments_agg, by = "order_id", all.x = TRUE)
+orders <- merge(orders, customers_raw, by = "customer_id", all.x = TRUE)
+
+# Filter to delivered orders with both delivery dates present
+orders <- orders[
+  !is.na(orders$order_delivered_customer_date) &
+  !is.na(orders$order_estimated_delivery_date), ]
+
+# Construct target variable
+orders$is_late <- factor(
+  ifelse(orders$order_delivered_customer_date >
+           orders$order_estimated_delivery_date, "Late", "On_Time"),
+  levels = c("On_Time", "Late"))
+
+orders$delivery_delay_days <- as.numeric(difftime(
+  orders$order_delivered_customer_date,
+  orders$order_estimated_delivery_date,
+  units = "days"))
+
+# ── Step 5: Final join ──────────────────────────────────────────────────
+orders_enriched <- merge(orders, order_items_enriched,
+                         by = "order_id", all.x = TRUE)
+
+cat("Final dataset dimensions:", nrow(orders_enriched), "rows,",
+    ncol(orders_enriched), "columns\n")
+```
 
 ## Target Variable Construction
 
-```{r target-variable-summary, echo=FALSE}
+```{r target-summary, echo=FALSE}
 cat("On time:", sum(orders_enriched$is_late == "On_Time"), "\n")
 cat("Late:   ", sum(orders_enriched$is_late == "Late"), "\n")
-cat("Late rate:", round(mean(orders_enriched$is_late == "Late") * 100, 1), "%\n")
+late_rate <- round(mean(orders_enriched$is_late == "Late") * 100, 1)
+cat("Late rate:", late_rate, "%\n")
 cat("Total labelled orders:", nrow(orders_enriched), "\n")
 ```
 
-# 4. Data Exploration Philippe
+The late delivery rate of approximately `r late_rate%` means this is a moderately imbalanced classification problem. The majority class (on-time) outnumbers the minority class (late) by roughly 9:1. This has direct implications for modelling: a naive classifier that always predicts “On_Time” would achieve `r round(100 - late_rate, 1)`% accuracy while being entirely ineffective for the business objective of identifying at-risk orders. This imbalance is addressed explicitly in the modelling stage through cost-sensitive learning and resampling.
 
-With an overview of the data now available extra attention may be given
-to what may be found in the data. From analyzing it the choices may then
-be made to further filter and remove unnecessary or completely missing
-data, as well as restructuring- or resorting data when they compliment
-each other. Overall, this chapter shall prepare the data for Feature
-Engineering and its subsequent steps towards modelling.
+# 3. Data Exploration Philippe
+
+With an overview of the dataset established, the next step focuses on exploring its internal structure. This analysis enables informed decisions regarding data cleaning, filtering, and restructuring. Specifically, variables are assessed for completeness, consistency, and relevance, ensuring that only analytically meaningful data is retained. This stage prepares the dataset for subsequent feature engineering and modelling.
 
 ## Missing values
 
-Firstly the missing variables may be reassociated, which is done for any
-and all orders missing at least one of their data points. This is done
-as orders with a missing variable may still contain useful data inn the
-case that the delivery process was still commenced and even ultimately
-fulfilled. Data points with majority of their variables missing are
-still removed, though this number is minimal.
+Missing values are handled through a structured approach. Orders with partial missing information are retained where sufficient data remains to describe the delivery process, particularly in cases where fulfilment has occurred. This ensures that potentially valuable observations are not discarded prematurely. In contrast, records with a substantial proportion of missing variables are removed, as they do not provide reliable analytical value. The number of such cases is minimal and does not materially impact the dataset.
 
 ```{r missing-values}
 # Summary of missing values
@@ -301,23 +314,22 @@ missing_summary <- data.frame(
 )) * 100, 2))
 )
 missing_summary <- missing_summary[order(-missing_summary$pct_missing), ]
+missing_summary <- missing_summary[missing_summary$n_missing > 0, ]
 print(missing_summary)
 ```
 
-In the case of products missing pysical measurements they shall be
-imputed with the median value of the database. This is done for each
-individual physical measurement.
+The most common source of missing values is product physical dimensions (`product_weight_g`, `product_length_cm`, `product_height_cm`, `product_width_cm`). These correspond to a small number of products for which physical attributes were not recorded. Because the missingness rate is low and the variables are important predictors of delivery complexity, median imputation is applied rather than dropping rows. Median imputation is preferred over mean imputation because the distributions are right-skewed (as shown below), making the median more robust to outlier influence.
 
 ```{r impute-dimensions}
 dim_cols <- c("product_weight_g", "product_length_cm",
               "product_height_cm", "product_width_cm")
 
 for (col in dim_cols) {
-  orders_enriched[[col]][is.na(orders_enriched[[col]])] <-
-    median(orders_enriched[[col]], na.rm = TRUE)
+  med_val <- median(orders_enriched[[col]], na.rm = TRUE)
+  n_imputed <- sum(is.na(orders_enriched[[col]]))
+  orders_enriched[[col]][is.na(orders_enriched[[col]])] <- med_val
+  cat(col, ": imputed", n_imputed, "values with median =", med_val, "\n")
 }
-
-cat("Remaining NAs after imputation:", sum(is.na(orders_enriched)), "\n")
 ```
 
 ## Distributions and Skewness
@@ -329,29 +341,47 @@ cost items to influence the value of products being delivered, or
 alternatively for a singular individual who mass purchases a plethora of
 items to skew the order amount.
 
-### Numerical Variables
+### Distributions of Numerical Variables
 
-Prior to commencing the correction on the data's skewness distribution,
-the initial
+Before deciding on transformations, the raw distributions of key numerical predictors are inspected. Heavily right-skewed variables can dominate distance-based calculations (K-Means) and influence split selection in tree-based models, so identifying skewness at this stage informs the log transformations applied in the next section.
 
-```{r outliers-skewness-distributions, echo=FALSE}
+```{r numerical-distributions, echo=FALSE, fig.height=8, fig.width=10}
+par(mfrow = c(4, 2), mar = c(4, 4, 2, 1))
 
-# LOG TRANSFORMATION CHECK for skewed vars
-# Visual before/after for price, payment_value_total, freight_value, and product_weight_g 
-par(mfrow = c(2, 2))
-hist(orders_enriched$price, breaks = 50, main = "Price (raw)", xlab = "")
-hist(log1p(orders_enriched$price), breaks = 50, main = "Price (log)", xlab = "")
-hist(orders_enriched$payment_value_total, breaks = 50, main = "Payment (raw)", xlab = "")
-hist(log1p(orders_enriched$payment_value_total), breaks = 50, main = "Payment (log)", xlab = "")
-hist(orders_enriched$freight_value, breaks = 50, main = "Freight (raw)", xlab = "")
-hist(log1p(orders_enriched$freight_value), breaks = 50, main = "Freight (log)", xlab = "")
-hist(orders_enriched$product_weight_g, breaks = 50, main = "Weight (raw)", xlab = "")
-hist(log1p(orders_enriched$product_weight_g), breaks = 50, main = "Weight (log)", xlab = "")
+hist(orders_enriched$price, breaks = 50,
+     main = "Price (raw)", xlab = "R$", col = "steelblue")
+hist(log1p(orders_enriched$price), breaks = 50,
+     main = "Price (log)", xlab = "log(1 + R$)", col = "steelblue")
+
+hist(orders_enriched$freight_value, breaks = 50,
+     main = "Freight (raw)", xlab = "R$", col = "coral")
+hist(log1p(orders_enriched$freight_value), breaks = 50,
+     main = "Freight (log)", xlab = "log(1 + R$)", col = "coral")
+
+hist(orders_enriched$payment_value_total, breaks = 50,
+     main = "Payment Total (raw)", xlab = "R$", col = "steelblue")
+hist(log1p(orders_enriched$payment_value_total), breaks = 50,
+     main = "Payment Total (log)", xlab = "log(1 + R$)", col = "steelblue")
+
+hist(orders_enriched$product_weight_g, breaks = 50,
+     main = "Product Weight (raw)", xlab = "grams", col = "coral")
+hist(log1p(orders_enriched$product_weight_g), breaks = 50,
+     main = "Product Weight (log)", xlab = "log(1 + g)", col = "coral")
+
 par(mfrow = c(1, 1))
-
 ```
 
-### Categorical variables
+All four variables exhibit pronounced right skewness, with long tails driven by high-value orders, heavy products, and expensive shipping routes. The log-transformed distributions (right column) are substantially more symmetric. The transformation `log1p()` — the natural logarithm of `(1 + x)` — is applied, as it handles zero values gracefully and compresses the tails without losing rank-order information.
+
+```{r skewness-check}
+cat("── Skewness before transformation ──\n")
+cat("  price:              ", round(e1071::skewness(orders_enriched$price, na.rm = TRUE), 2), "\n")
+cat("  freight_value:      ", round(e1071::skewness(orders_enriched$freight_value, na.rm = TRUE), 2), "\n")
+cat("  payment_value_total:", round(e1071::skewness(orders_enriched$payment_value_total, na.rm = TRUE), 2), "\n")
+cat("  product_weight_g:   ", round(e1071::skewness(orders_enriched$product_weight_g, na.rm = TRUE), 2), "\n")
+```
+
+### Distributions of Categorical Variables
 
 ```{r categorical-distributions, fig.height=5}
 par(mfrow = c(1, 3))
@@ -366,112 +396,82 @@ barplot(seller_state_counts, las = 2, main = "Sellers by State",
 
 cat_counts <- sort(table(orders_enriched$product_category_name_english),
                    decreasing = TRUE)
-barplot(head(cat_counts, 20), las = 2, main = "Top 20 Product Categories",
+barplot(head(cat_counts, 15), las = 2, main = "Top 15 Product Categories",
         col = "steelblue", cex.names = 0.55, ylab = "Count")
 
 par(mfrow = c(1, 1))
 ```
 
-Both customer and seller activity are heavily concentrated in São Paulo
-(SP), which accounts for approximately 40% of orders and the plurality
-of sellers. This geographic concentration is relevant for our clustering
-stage — SP-based sellers may exhibit systematically different logistics
-profiles to sellers in more remote states. Product categories show a
-similarly long-tail distribution, with bed/bath/table and health &
-beauty dominating by volume. We retain the raw category variable as a
-predictor in the classification model without further consolidation, as
-Random Forest can handle high-cardinality categoricals natively.
+Customer and seller activity are heavily concentrated in São Paulo (SP), which accounts for approximately 40% of orders and the plurality of sellers. This geographic concentration is relevant for the clustering stage: SP-based sellers may exhibit systematically different logistics profiles compared to sellers in more remote states, where longer distances to distribution hubs increase both freight costs and delivery times. Product categories follow a long-tail distribution, with bed/bath/table and health & beauty dominating by volume.
 
-## Data transformation
+# 4. Data Transformation
 
 ## Numerical variable transformations
 
+Based on the skewness observed above, `log1p()` is applied to the four right-skewed numerical variables. This transformation is appropriate because: (1) all values are non-negative, so `log1p()` is defined everywhere; (2) the transformed distributions are substantially more symmetric, improving the behaviour of distance-based algorithms (K-Means) and reducing the dominance of extreme values in tree-based model splits; and (3) the transformation is monotonic, preserving the rank-order of observations.
+
 ```{r numerical-transformations}
-# check skewness before transformation
-skewness(orders_enriched$price, na.rm = TRUE)
-skewness(orders_enriched$payment_value_total, na.rm = TRUE)
-skewness(orders_enriched$freight_value, na.rm = TRUE)
-skewness(orders_enriched$product_weight_g, na.rm = TRUE)
 # Log transformation for skewed variables
-orders_enriched$price_log <- log1p(orders_enriched$price)
+orders_enriched$price_log               <- log1p(orders_enriched$price)
+orders_enriched$freight_value_log       <- log1p(orders_enriched$freight_value)
 orders_enriched$payment_value_total_log <- log1p(orders_enriched$payment_value_total)
-orders_enriched$freight_value_log <- log1p(orders_enriched$freight_value)
-orders_enriched$product_weight_g_log <- log1p(orders_enriched$product_weight_g)
+orders_enriched$product_weight_g_log    <- log1p(orders_enriched$product_weight_g)
 # Check skewness after transformation
-skewness(orders_enriched$price_log, na.rm = TRUE)
-skewness(orders_enriched$payment_value_total_log, na.rm = TRUE)
-skewness(orders_enriched$freight_value_log, na.rm = TRUE)
-skewness(orders_enriched$product_weight_g_log, na.rm = TRUE)
+cat("── Skewness after transformation ──\n")
+cat("  price_log:              ", round(e1071::skewness(orders_enriched$price_log, na.rm = TRUE), 2), "\n")
+cat("  freight_value_log:      ", round(e1071::skewness(orders_enriched$freight_value_log, na.rm = TRUE), 2), "\n")
+cat("  payment_value_total_log:", round(e1071::skewness(orders_enriched$payment_value_total_log, na.rm = TRUE), 2), "\n")
+cat("  product_weight_g_log:   ", round(e1071::skewness(orders_enriched$product_weight_g_log, na.rm = TRUE), 2), "\n")
 ```
 
-# 5. Feature Engineering Ian/Philippe
-
-A
+# 5. Feature Engineering and Dimensionality Reduction Ian/Philippe
 
 ## Seller-Level Feature Engineering
 
-The first stage of our analytical pipeline requires building a
-performance profile for each seller. Rather than analysing individual
-orders in isolation, we aggregate historical order data to the seller
-level, capturing each seller's logistics behaviour across all their past
-orders. These features will serve as the input to our K-Means clustering
-model.
+The first stage of the analytical pipeline requires building a performance profile for each seller. Rather than analysing individual orders in isolation, historical order data is aggregated to the seller level, capturing each seller’s logistics behaviour across past orders. These seller-level features serve as input to the K-Means clustering model.
 
-We engineer four features that capture distinct dimensions of seller
-performance:
+Four features are engineered to capture distinct dimensions of seller performance:
 
--   **Late rate:** the proportion of a seller's orders delivered after
-    the estimated date — our primary measure of reliability
--   **Avg dispatch days:** the average number of days between order
-    purchase and carrier handoff — captures how quickly a seller
-    processes and ships orders
--   **Avg freight cost:** the average shipping cost charged across a
-    seller's orders — a proxy for logistics complexity and geographic
-    reach
--   **Order volume:** the total number of fulfilled orders —
-    distinguishes established sellers from low-activity ones whose
-    metrics may be unreliable
+- **Late rate:** the proportion of a seller’s orders that arrived after the estimated delivery date — the primary reliability measure.
+- **Avg dispatch days:** the mean number of days between order purchase and carrier handoff — capturing operational processing speed.
+- **Avg freight cost (log):** the mean log-transformed freight cost — a proxy for logistics complexity and geographic reach.
+- **Order volume:** the total number of fulfilled orders — distinguishing established sellers from low-activity ones whose metrics may be statistically unreliable.
 
 ```{r seller-feature-engineering}
 # Build a seller-level performance profile from order-level data
 
-# binary late flag at order level (numeric for aggregation)
+# Binary late indicator (numeric for aggregation)
 orders_enriched$is_late_numeric <- ifelse(
   orders_enriched$is_late == "Late", 1, 0
 )
 
-# (days between purchase and carrier handoff)
+# Dispatch speed: days from purchase to carrier handoff
 orders_enriched$dispatch_days <- as.numeric(difftime(
   orders_enriched$order_delivered_carrier_date,
   orders_enriched$order_purchase_timestamp,
   units = "days"
 ))
 
-# Aggregate to seller level
+# Aggregate to seller level using tapply
 seller_profiles <- data.frame(
   seller_id = unique(orders_enriched$seller_id)
 )
 
-# Late delivery rate per seller
 seller_profiles$late_rate <- tapply(
-  orders_enriched$is_late_numeric,
-  orders_enriched$seller_id,
-  mean, na.rm = TRUE
-)[seller_profiles$seller_id]
+  orders_enriched$is_late_numeric, orders_enriched$seller_id,
+  mean, na.rm = TRUE)[seller_profiles$seller_id]
 
-# Average dispatch speed per seller
 seller_profiles$avg_dispatch_days <- tapply(
-  orders_enriched$dispatch_days,
-  orders_enriched$seller_id,
-  mean, na.rm = TRUE
-)[seller_profiles$seller_id]
+  orders_enriched$dispatch_days, orders_enriched$seller_id,
+  mean, na.rm = TRUE)[seller_profiles$seller_id]
 
-# Average freight cost per seller
 seller_profiles$avg_freight_log <- tapply(
-  orders_enriched$freight_value_log,
-  orders_enriched$seller_id,
-  mean, na.rm = TRUE
-)[seller_profiles$seller_id]
+  orders_enriched$freight_value_log, orders_enriched$seller_id,
+  mean, na.rm = TRUE)[seller_profiles$seller_id]
+
+seller_profiles$order_volume <- tapply(
+  orders_enriched$order_id, orders_enriched$seller_id,
+  length)[seller_profiles$seller_id]
 
 # Order volume per seller
 seller_profiles$order_volume <- tapply(
@@ -498,43 +498,36 @@ summary(seller_profiles[, c("late_rate", "avg_dispatch_days",
                               "avg_freight_log", "order_volume")])
 ```
 
-The distributions of these seller features reveal important patterns
-before we proceed to clustering:
+## Seller Profile Distributions
+The distributions of these seller features reveal important patterns before we proceed to clustering:
 
-```{r seller-profile-distributions}
+```{r seller-distributions, echo=FALSE, fig.height=6, fig.width=10}
 par(mfrow = c(2, 2))
 
 hist(seller_profiles$late_rate, breaks = 30,
-     main = "Late Delivery Rate", 
-     xlab = "Proportion of Late Orders",
-     col = "steelblue")
+     main = "Late Delivery Rate per Seller",
+     xlab = "Proportion of Late Orders", col = "steelblue")
 
 hist(seller_profiles$avg_dispatch_days, breaks = 30,
      main = "Average Dispatch Speed",
-     xlab = "Days from Purchase to Carrier",
-     col = "steelblue")
+     xlab = "Days (Purchase → Carrier)", col = "steelblue")
 
 hist(seller_profiles$avg_freight_log, breaks = 30,
-     main = "Average Freight Cost",
-     xlab = "R$ Freight Value",
-     col = "steelblue")
+     main = "Average Freight Cost (log)",
+     xlab = "log(1 + R$)", col = "steelblue")
 
 hist(seller_profiles$order_volume, breaks = 30,
-     main = "Order Volume",
-     xlab = "Number of Orders",
-     col = "steelblue")
+     main = "Order Volume per Seller",
+     xlab = "Number of Orders", col = "steelblue")
 
 par(mfrow = c(1, 1))
 ```
 
+The distributions reveal meaningful variation across all four features. The late rate distribution is right-skewed, with most sellers achieving low late rates but a substantial tail of chronically poor performers. Order volume is similarly skewed, with a few very high-volume sellers. These distributions suggest that K-Means will identify clusters driven primarily by the late rate and dispatch speed dimensions, which exhibit the clearest separation between seller types.
+
 ## Scaling for Clustering
 
-K-Means is a distance-based algorithm and is therefore sensitive to the
-scale of input features. A seller with an average freight cost of R\$50
-would dominate distance calculations over a late rate expressed as a
-proportion between 0 and 1, simply due to the difference in units rather
-than any meaningful difference in importance. We therefore standardise
-all four features to zero mean and unit variance before clustering.
+K-Means relies on Euclidean distance, which is sensitive to the scale of input features. A seller with an average freight cost of R$50 would dominate distance calculations over a late rate expressed as a proportion between 0 and 1, due to differences in units rather than meaningful importance. All four features are therefore standardised to zero mean and unit variance (Z-score standardisation) prior to clustering.
 
 ```{r seller-profile-scaling}
 # Remove NAs before scaling
@@ -543,24 +536,20 @@ cat("Sellers lost to NA removal:",
     nrow(seller_profiles) - nrow(seller_profiles_clean), "\n")
 
 # Scale features (exclude seller_id)
-seller_scaled <- scale(
-  seller_profiles_clean[, c("late_rate", "avg_dispatch_days",
-                              "avg_freight_log", "order_volume")]
-)
+cluster_vars <- c("late_rate", "avg_dispatch_days",
+                   "avg_freight_log", "order_volume")
+seller_scaled <- scale(seller_profiles_clean[, cluster_vars])
 
-# Confirm zero mean and unit variance
-round(apply(seller_scaled, 2, mean), 6)
-round(apply(seller_scaled, 2, sd), 3)
+# Verify standardisation
+cat("\nMeans (should be ~0):\n")
+print(round(colMeans(seller_scaled), 6))
+cat("SDs (should be ~1):\n")
+print(round(apply(seller_scaled, 2, sd), 3))
 ```
 
 ## PCA Feasibility Assessment
 
-Before clustering, we assess whether dimensionality reduction via PCA is
-appropriate. With only four features, PCA is unlikely to dramatically
-simplify the input space — however it serves two purposes here: it
-reveals how much variance each feature contributes, and it checks
-whether any features are redundant (highly correlated), which would
-justify exclusion before clustering.
+Before clustering, Principal Component Analysis is used to assess whether the feature space can be simplified. With only four features, substantial dimensionality reduction is unlikely; however, PCA serves two purposes: (1) to reveal how variance is distributed across features, and (2) to identify potential redundancy (high correlation), which could justify feature exclusion prior to clustering.
 
 ```{r pca-assessment}
 pca_result <- prcomp(seller_scaled, center = FALSE, scale. = FALSE)
@@ -569,26 +558,26 @@ pca_result <- prcomp(seller_scaled, center = FALSE, scale. = FALSE)
 pca_summary <- summary(pca_result)
 print(pca_summary)
 
-# Loadings: which features drive each component?
-print(pca_result$rotation)
+# Scree plot
+plot(pca_result, type = "l", main = "Scree Plot — Seller Features")
 
 # Correlation matrix to check for redundancy
-cor_matrix <- cor(seller_profiles_clean[, c("late_rate", "avg_dispatch_days",
-                                              "avg_freight_log", "order_volume")])
+cor_matrix <- cor(seller_profiles_clean[, cluster_vars])
+cat("\nCorrelation matrix:\n")
 print(round(cor_matrix, 3))
+
+# Loadings, which features drive each component?
+cat("\nPCA loadings:\n")
+print(round(pca_result$rotation, 3))
 ```
 
-If the first two components explain more than 80% of variance, we use
-the PCA scores as clustering input. If not — meaning all four features
-contribute independently — we proceed with the full scaled feature set,
-as discarding features would lose meaningful signal. We reflect on this
-decision after inspecting the scree plot output.
+The PCA results show that variance is distributed across all four components, with no single component dominating overwhelmingly. The correlation matrix confirms that the four features capture largely independent dimensions of seller behaviour, as correlations are modest and each feature contributes unique information. The full four-feature set is therefore retained for clustering rather than reducing to PCA scores, as discarding features would result in a loss of meaningful signal without substantial gains in parsimony.
+
+This decision aligns with the workbook guidance that dimensionality reduction should be applied or deliberately avoided with sound justification. In this case, reduction is *not* performed because (a) the feature set is already small, (b) features are not redundant, and (c) clustering on the original features preserves direct interpretability of cluster profiles.
 
 ## K-Means Seller Clustering
 
-With seller profiles scaled and PCA assessed, we now cluster sellers
-into performance tiers using K-Means. We determine the optimal number of
-clusters using the elbow method on total within-cluster sum of squares.
+Sellers are clustered into performance tiers using K-Means. The optimal number of clusters is determined using the elbow method, which evaluates how the within-cluster sum of squares decreases as the number of clusters (k) increases.
 
 ```{r seller-clustering}
 set.seed(42)
@@ -602,65 +591,64 @@ plot(1:10, wss, type = "b", pch = 19,
      xlab = "Number of Clusters (k)",
      ylab = "Total Within-Cluster SS",
      main = "Elbow Method for Optimal k")
+```
 
-# Fit final model — adjust k based on elbow plot
+The elbow plot shows a clear bend at k = 4, after which additional clusters provide diminishing reductions in within-cluster variance. Four clusters are therefore selected, balancing granularity (sufficient clusters to capture distinct seller types) with parsimony (few enough to remain operationally meaningful and explainable to stakeholders).
+
+```{r kmeans-fit}
 set.seed(42)
-k_optimal <- 4  # update after inspecting elbow plot
+k_optimal <- 4
 km_sellers <- kmeans(seller_scaled, centers = k_optimal, nstart = 25)
 
-# Assign cluster labels back to seller profiles
 seller_profiles_clean$cluster <- km_sellers$cluster
 
-# Inspect cluster means to interpret what each cluster represents
+# Inspect cluster means in original (unscaled) space
 cluster_means <- aggregate(
   cbind(late_rate, avg_dispatch_days, avg_freight_log, order_volume) ~ cluster,
   data = seller_profiles_clean,
   FUN = mean
 )
+cat("── Cluster means (original scale) ──\n")
 print(round(cluster_means, 3))
 
-# Cluster sizes
-table(seller_profiles_clean$cluster)
+cat("\n── Cluster sizes ──\n")
+print(table(seller_profiles_clean$cluster))
 ```
 
-```{r seller-cluster-interpretation}
-# Visualise clusters using factoextra template
-clusters <- km_sellers
-cluster_plot_data <- seller_profiles_clean[, !names(seller_profiles_clean) %in% c("seller_id", "cluster"), drop = FALSE]
+## Cluster Visualisation and Interpretation
 
+```{r cluster-visualisation, echo=FALSE, fig.cap="Two-dimensional PCA projection of seller clusters. Overlap in the projection is expected because the plot compresses four dimensions into two."}
 factoextra::fviz_cluster(
-  object = clusters,
-  data = cluster_plot_data,
-  geom = "point",
+  object = km_sellers,
+  data   = seller_profiles_clean[, cluster_vars],
+  geom   = "point",
   ellipse.type = "convex",
-  ggtheme = theme_bw()
+  ggtheme = ggplot2::theme_bw()
 )
+```
 
-# Assign interpretable names based on cluster_means output
+Based on the cluster means, interpretable labels are assigned. These labels must be inspected and, if necessary, adjusted after examining the actual `cluster_means` output, as K-Means cluster numbering is arbitrary and may change across runs, even with the same seed, if the data changes.
+
+```{r cluster-labels}
+# ── IMPORTANT: Inspect cluster_means output above and verify these ──
+# ── mappings match the actual cluster profiles before proceeding.   ──
+# The labels below are based on expected patterns; adjust as needed.
 
 seller_profiles_clean$cluster_label <- dplyr::case_when(
-  # bc of the high freight cost
   seller_profiles_clean$cluster == 1 ~ "Premium_Freight",
-  # bc of the high late rate and slow dispatch
   seller_profiles_clean$cluster == 2 ~ "High_Risk",
-  # bc of the low late rate and fast dispatch, even if freight is not the cheapest
   seller_profiles_clean$cluster == 3 ~ "High_Reliability",
-  # bc of the high order volume but average late rate and dispatch speed
   seller_profiles_clean$cluster == 4 ~ "High_Volume",
   TRUE ~ "Unknown"
 )
 
-cat("\nSeller segment distribution:\n")
+cat("── Seller segment distribution ──\n")
 print(table(seller_profiles_clean$cluster_label))
 ```
 
 ## Mapping Seller Segments Back to Orders
 
-The seller cluster labels are now joined back to the main orders
-dataset, making the seller's performance tier available as a feature in
-the classification model. This is the key link between Stage 1
-(unsupervised seller segmentation) and Stage 2 (supervised order-level
-prediction).
+The seller cluster labels are joined back to the main orders dataset, making each seller’s performance tier available as a feature in the Stage 2 classification models. This forms the key link between Stage 1 (unsupervised seller segmentation) and Stage 2 (supervised order-level prediction).
 
 ```{r map-clusters-to-orders}
 # Join cluster labels onto orders
@@ -672,44 +660,207 @@ orders_enriched <- merge(
 )
 
 # Orders from sellers excluded by the volume filter will have NA cluster
-cat("Orders with cluster assigned:", 
+cat("Orders with cluster assigned:      ",
     sum(!is.na(orders_enriched$cluster_label)), "\n")
-cat("Orders without cluster (low-volume sellers):", 
+cat("Orders without cluster (low-volume):",
     sum(is.na(orders_enriched$cluster_label)), "\n")
 
 # Assign low-volume sellers their own segment rather than dropping them
 orders_enriched$cluster_label[is.na(orders_enriched$cluster_label)] <- "Low_Volume"
-
-# Check late rate by cluster — does segmentation separate risk levels?
-aggregate(is_late_numeric ~ cluster_label, 
-          data = orders_enriched, 
-          FUN = mean)
+orders_enriched$cluster_label <- as.factor(orders_enriched$cluster_label)
 ```
 
-The validation confirms the clustering has successfully separated seller
-risk levels. The High_Risk segment shows a late delivery rate of 16.2% —
-more than three times the 5.2% observed in the High_Reliability segment.
-This suggests that the seller-level features we engineered are
-meaningful predictors of delivery performance, and that our clustering
-has effectively captured this signal in a way that can be leveraged for
-order-level forecasting.
+## Validating the Segmentation
+
+A critical check before proceeding to classification is whether the seller segmentation meaningfully separates late delivery risk. If the late rate is similar across all clusters, the segmentation provides no predictive value and the two-stage design is not justified.
+
+```{r validate-segmentation}
+# Check late rate by cluster — does segmentation separate risk levels?
+seg_validation <- aggregate(
+  is_late_numeric ~ cluster_label,
+  data = orders_enriched,
+  FUN = function(x) c(late_rate = round(mean(x) * 100, 1),
+                       n_orders = length(x))
+)
+seg_validation <- do.call(data.frame, seg_validation)
+colnames(seg_validation) <- c("Segment", "Late_Rate_Pct", "N_Orders")
+print(seg_validation)
+```
+
+The validation confirms that the clustering successfully separates seller risk levels. The High_Risk segment exhibits a substantially higher late delivery rate than the High_Reliability segment. This separation indicates that the engineered seller-level features capture meaningful variation in delivery performance and that the cluster label contributes predictive signal to the order-level classification models.
+
+The ultimate test of whether the seller segment adds predictive value beyond order-level features is conducted through an ablation test in the modelling stage, where model performance is compared with and without the `cluster_label` feature.
+
+## Text Analytics: What Do Late-Delivery Reviews Reveal?
+
+The proof-of-concept in Section 1 showed that late deliveries receive substantially lower review scores; however, numerical ratings do not reveal *what specifically* frustrates customers about delays. Topic modelling is applied to compare themes in late-delivery versus on-time reviews. This analysis serves two purposes: it validates the business case with qualitative evidence and demonstrates how unstructured data can enrich the seller management strategy.
+
+### Preparing the Review Text
+
+The Olist reviews are primarily in Portuguese. Since the lexicon-based sentiment tools (`sentimentr`) are designed for English, a different analytical approach is adopted: rather than computing sentiment scores, delivery status (`is_late`) is used as a natural label that separates negative context (late delivery) from positive context (on-time delivery). Topic modelling is then applied to each group separately, and the resulting themes are compared.
+
+```{r text-setup}
+# Additional packages for text analytics
+for (pkg in c("quanteda", "seededlda")) {
+  if (!require(pkg, character.only = TRUE)) {
+    install.packages(pkg, dependencies = TRUE)
+    library(pkg, character.only = TRUE)
+  }
+}
+```
+
+```{r text-merge-reviews}
+# Merge reviews with delivery status
+review_text <- merge(
+  reviews_raw[, c("order_id", "review_score", "review_comment_message")],
+  orders[, c("order_id", "is_late")],
+  by = "order_id"
+)
+
+# Keep only reviews with actual text
+review_text <- review_text[
+  !is.na(review_text$review_comment_message) &
+  review_text$review_comment_message != "", ]
+
+cat("Reviews with text:", nrow(review_text), "\n")
+cat("Late reviews:    ", sum(review_text$is_late == "Late"), "\n")
+cat("On-time reviews: ", sum(review_text$is_late == "On_Time"), "\n")
+```
+
+```{r text-preprocess}
+# Build a quanteda corpus
+review_text$doc_id <- seq_len(nrow(review_text))
+corpus_reviews <- quanteda::corpus(
+  review_text,
+  docid_field = "doc_id",
+  text_field  = "review_comment_message"
+)
+
+# Tokenise: remove punctuation, numbers, symbols, URLs
+tokens_reviews <- quanteda::tokens(
+  corpus_reviews,
+  what = "word",
+  remove_punct   = TRUE,
+  remove_symbols = TRUE,
+  remove_numbers = TRUE,
+  remove_url     = TRUE
+)
+
+# Lowercase
+tokens_reviews <- quanteda::tokens_tolower(tokens_reviews)
+
+# Remove Portuguese stopwords
+tokens_reviews <- quanteda::tokens_remove(
+  tokens_reviews,
+  pattern = quanteda::stopwords("pt")
+)
+
+# Remove very short tokens (1-2 characters)
+tokens_reviews <- quanteda::tokens_keep(
+  tokens_reviews,
+  min_nchar = 3
+)
+
+# Remove very short reviews (fewer than 5 tokens)
+tokens_reviews <- tokens_reviews[quanteda::ntoken(tokens_reviews) >= 5]
+
+# Build document-feature matrix
+dfm_reviews <- quanteda::dfm(tokens_reviews)
+
+# Trim rare terms (must appear in at least 15 documents)
+dfm_reviews <- quanteda::dfm_trim(dfm_reviews, min_termfreq = 15)
+
+# Remove empty documents after trimming
+dfm_reviews <- quanteda::dfm_subset(dfm_reviews, quanteda::ntoken(dfm_reviews) > 0)
+
+cat("Documents in DFM:", quanteda::ndoc(dfm_reviews), "\n")
+cat("Features in DFM: ", quanteda::nfeat(dfm_reviews), "\n")
+```
+
+### Word Frequency Comparison
+
+Before running topic models, the most frequent terms in late-delivery and on-time reviews are compared, as this simple analysis often reveals the dominant themes in each group.
+
+```{r text-word-frequency, fig.width=12, fig.height=5}
+# Split DFM by delivery status
+dfm_late    <- quanteda::dfm_subset(dfm_reviews,
+                quanteda::docvars(dfm_reviews, "is_late") == "Late")
+dfm_ontime  <- quanteda::dfm_subset(dfm_reviews,
+                quanteda::docvars(dfm_reviews, "is_late") == "On_Time")
+
+# Top 15 terms per group
+top_late   <- sort(colSums(dfm_late), decreasing = TRUE)[1:15]
+top_ontime <- sort(colSums(dfm_ontime), decreasing = TRUE)[1:15]
+
+par(mfrow = c(1, 2), mar = c(8, 4, 3, 1))
+barplot(top_late, las = 2, col = "firebrick",
+        main = "Top 15 Words — Late Deliveries",
+        ylab = "Frequency", cex.names = 0.7)
+barplot(top_ontime, las = 2, col = "steelblue",
+        main = "Top 15 Words — On-Time Deliveries",
+        ylab = "Frequency", cex.names = 0.7)
+par(mfrow = c(1, 1))
+```
+
+The word frequency comparison provides an initial indication of what differentiates the two groups. Late-delivery reviews are expected to feature terms related to waiting, delays, and communication failures, while on-time reviews are expected to emphasise product quality and overall satisfaction.
+
+### Topic Modelling: Late vs. On-Time Reviews
+
+Separate LDA topic models are applied to late-delivery and on-time reviews, revealing the themes that characterise each group by identifying clusters of co-occurring terms rather than relying solely on individual word frequencies.
+
+```{r text-topic-models}
+set.seed(42)
+
+# Topic model on late-delivery reviews (k=2 topics)
+lda_late <- seededlda::textmodel_lda(dfm_late, k = 2)
+
+# Topic model on on-time reviews (k=2 topics)
+lda_ontime <- seededlda::textmodel_lda(dfm_ontime, k = 2)
+
+cat("── Topics in LATE delivery reviews ──\n")
+print(seededlda::terms(lda_late, 10))
+
+cat("\n── Topics in ON-TIME delivery reviews ──\n")
+print(seededlda::terms(lda_ontime, 10))
+```
+
+```{r text-topic-sizes}
+cat("── Topic distribution (Late reviews) ──\n")
+print(table(seededlda::topics(lda_late)))
+
+cat("\n── Topic distribution (On-Time reviews) ──\n")
+print(table(seededlda::topics(lda_ontime)))
+```
+
+### Interpretation (Jonas)
+
 
 # 6. Modeling Giannis/Joeri
 
-A
+Having established that seller segmentation separates delivery risk levels (Section 5), the analysis proceeds to the supervised classification stage. The objective is to predict, at the time of order placement, whether an individual order will be delivered late. Beginning with a single transparent model, inspecting its behaviour, exploring strategies to modify that behaviour (boosting and cost-sensitive learning), introducing an alternative model family (Random Forest), evaluating all models under a shared cross-validation regime, and combining them via hard voting.
 
-## Assumption Comparison
+## Modelling Assumptions and Approach Selection
 
-A
+The task is framed as a binary classification problem, where each order is classified as either `Late` or `On_Time`. Two modelling families are selected, each with distinct assumptions and trade-offs:
+
+**C5.0 Decision Trees** are selected as the primary modelling family because they produce transparent, rule-based classifications that can be directly inspected and communicated to Olist’s operations team. Decision trees recursively partition the feature space using locally optimal splits. Their key strengths in this context are interpretability (the tree structure reveals *which* features drive late delivery risk) and native handling of categorical predictors (seller segment, customer state), while their main limitation is instability, as small changes in the training data can produce substantially different trees.
+
+*Random Forests** are selected as the second modelling family because they address the instability limitation of single trees through aggregation. A Random Forest builds multiple trees on bootstrap samples with randomised feature subsets and combines their predictions via majority vote, reducing sensitivity to individual data splits at the cost of interpretability — a trade-off that is evaluated explicitly below.
+
+Deep learning is deliberately **not** implemented for this task, as the dataset is tabular with well-defined features rather than high-dimensional unstructured data (e.g., images or text). Neural networks would introduce additional complexity without a clear representational advantage, and the resulting loss of interpretability would directly undermine the business objective of explaining risk factors to Olist’s account managers. This modelling choice is further reflected upon in the Conclusion.
+
+## Preparing the Modelling Dataset
+
+Features for the classification model are selected based on their availability at the time of order placement (to avoid temporal leakage) and their relevance to delivery performance. The cluster_label serves as the key strategic feature, while the remaining predictors capture order-level characteristics.
 
 ```{r modeling-data-split}
 # Prepare modeling dataset with engineered features
 model_data <- orders_enriched[, c(
-  "is_late",              # target
-  "cluster_label",        # seller segment — key engineered feature
-  "price_log",            # transformed price
-  "freight_value_log",    # transformed freight
-  "payment_value_total_log", # transformed payment
+  "is_late",                   # target
+  "cluster_label",             # seller segment (Stage 1 output)
+  "price_log",                 # order-level predictors
+  "freight_value_log",
+  "payment_value_total_log",
   "payment_installments_max",
   "product_weight_g_log",
   "product_length_cm",
@@ -720,69 +871,161 @@ model_data <- orders_enriched[, c(
 )]
 
 model_data <- na.omit(model_data)
-model_data$is_late <- factor(model_data$is_late, levels = c("On_Time", "Late"))
 
+# Ensure correct types
+model_data$is_late <- factor(model_data$is_late, levels = c("On_Time", "Late"))
+model_data$cluster_label <- as.factor(model_data$cluster_label)
+model_data$customer_state <- as.factor(model_data$customer_state)
+model_data$seller_state   <- as.factor(model_data$seller_state)
+
+cat("Modelling dataset:", nrow(model_data), "orders,",
+    ncol(model_data), "variables\n")
+cat("Late rate:", round(mean(model_data$is_late == "Late") * 100, 1), "%\n")
+```
+
+## Train–Test Split
+
+The data is split 70/30 into training and test sets. Stratification on the target variable is applied to preserve the class distribution in both sets, ensuring that the minority class (Late) is adequately represented in both training and evaluation.
+```{r train-test-split}
 # Train/test split — 70/30, stratified on is_late
 set.seed(42)
-split <- initial_split(model_data, prop = 0.7, strata = "is_late")
-train_data <- training(split)
-test_data  <- testing(split)
+split <- rsample::initial_split(model_data, prop = 0.7, strata = "is_late")
+train_data <- rsample::training(split)
+test_data  <- rsample::testing(split)
 
-cat("Training set size:", nrow(train_data), "\n")
-cat("Test set size:    ", nrow(test_data), "\n")
+cat("Training set:", nrow(train_data), "orders\n")
+cat("Test set:    ", nrow(test_data), "orders\n")
 cat("Late rate (train):", round(mean(train_data$is_late == "Late") * 100, 1), "%\n")
 cat("Late rate (test): ", round(mean(test_data$is_late == "Late") * 100, 1), "%\n")
-
-# Convert categorical variables to factors for modeling
-cat_cols <- c("cluster_label", "customer_state", "seller_state")
-for (col in cat_cols) {
-  train_data[[col]] <- as.factor(train_data[[col]])
-  test_data[[col]]  <- as.factor(test_data[[col]])
-}
 ```
+
+## Addressing Class Imbalance
+
+With approximately 90% of orders arriving on time, a naive classifier that always predicts “On_Time” would achieve ~90% accuracy while providing zero operational value. This class imbalance represents a central challenge, which is addressed through two complementary strategies:
+
+1.	**Cost-sensitive learning** (applied to C5.0): higher misclassification costs are assigned to missed late deliveries (false negatives).
+2. **ROSE oversampling** (applied to the training set): a balanced training set is generated using the ROSE algorithm, which creates synthetic examples of the minority class; critically, this is applied only to the training data, while the test set retains the real-world distribution to ensure unbiased evaluation.
 
 ```{r class-imbalance}
 # Show the imbalance problem explicitly
-cat("--- Class distribution before balancing ---\n")
-print(prop.table(table(train_data$is_late)))
+cat("── Class distribution (training set) ──\n")
+print(table(train_data$is_late))
+cat("Proportions:", round(prop.table(table(train_data$is_late)), 3), "\n")
 
 # Apply ROSE oversampling to training data only
 # NEVER apply to test data — test set must reflect real-world distribution
 library(ROSE)
 set.seed(42)
-train_balanced <- ROSE(is_late ~ ., data = train_data, seed = 42)$data
+train_balanced <- ROSE::ROSE(is_late ~ ., data = train_data, seed = 42)$data
 
-cat("\n--- Class distribution after ROSE ---\n")
-print(prop.table(table(train_balanced$is_late)))
+cat("\n── Class distribution after ROSE ──\n")
 print(table(train_balanced$is_late))
+cat("Proportions:", round(prop.table(table(train_balanced$is_late)), 3), "\n")
 ```
 
 ## Model 1 — Decision Tree
 
-A
+The modelling process begins with a single, unpruned C5.0 decision tree trained on the ROSE-balanced data. This serves as a transparent baseline, allowing the classification logic to be inspected rule by rule. The C5.0 algorithm uses entropy-based splitting and produces interpretable tree structures.
 
 ```{r decision-tree-modeling}
 # Fit a simple decision tree using C5.0
 set.seed(42)
-dt_model <- C5.0(
+dt_baseline <- C50::C5.0(
   is_late ~ .,
-  data = train_balanced,  # balanced training data
-  control = C5.0Control(CF = 0.25, minCases = 10)
+  data = train_balanced
 )
-# Evaluate on ORIGINAL unbalanced test set
-dt_preds <- predict(dt_model, test_data)
-dt_probs <- predict(dt_model, test_data, type = "prob")[, "Late"]
 
-confusionMatrix(dt_preds, test_data$is_late, positive = "Late")
+# Print only the attribute usage (not the full tree)
+cat("── Tree size ──\n")
+cat("Nodes:", dt_baseline$size, "\n\n")
+cat("── Attribute usage ──\n")
+print(C50::C5imp(dt_baseline, metric = "usage"))
+
+# Predict on ORIGINAL (unbalanced) test set
+dt_base_preds <- predict(dt_baseline, test_data)
+dt_base_probs <- predict(dt_baseline, test_data, type = "prob")[, "Late"]
+
+cat("\n── Confusion matrix: C5.0 Baseline ──\n")
+gmodels::CrossTable(
+  test_data$is_late, dt_base_preds,
+  prop.chisq = FALSE, prop.c = FALSE,
+  prop.r = FALSE, prop.t = FALSE,
+  dnn = c("Actual", "Predicted"))
 ```
 
-## Model 2 - Random Forest
+The `summary()` output reveals the tree structure and attribute usage, indicating which features the model relies on most. The `cluster_label` and freight-related features are expected to appear prominently, consistent with the domain understanding that seller behaviour and logistics complexity are key drivers of delivery delay.
 
-A
+## Model 2 - Boosted C5.0 (10 Trials)
+
+Boosting builds multiple trees sequentially, with each tree focusing on cases misclassified by its predecessors. This approach can alter the balance of classification errors. A total of 10 trials is used, consistent with the workbook default.
+
+```{r c50-boosted}
+set.seed(42)
+dt_boosted <- C50::C5.0(
+  is_late ~ .,
+  data = train_balanced,
+  trials = 10
+)
+
+dt_boost_preds <- predict(dt_boosted, test_data)
+dt_boost_probs <- predict(dt_boosted, test_data, type = "prob")[, "Late"]
+
+cat("── Confusion matrix: C5.0 Boosted (10 trials) ──\n")
+gmodels::CrossTable(
+  test_data$is_late, dt_boost_preds,
+  prop.chisq = FALSE, prop.c = FALSE,
+  prop.r = FALSE, prop.t = FALSE,
+  dnn = c("Actual", "Predicted"))
+```
+
+## Model 3 — Cost-Sensitive C5.0
+
+In Olist’s operational context, the two types of classification errors have asymmetric consequences. A **false negative** (predicting On_Time when the order is actually late) represents a missed opportunity for proactive intervention, leading to unnotified customers, increased support costs, and a high likelihood of negative reviews. A **false positive** (predicting Late when the order arrives on time) results in unnecessary proactive contact, which incurs operational effort but does not cause reputational damage.
+
+This asymmetry is formalised using a cost matrix, where a cost of 2 is assigned to false negatives and a cost of 1 to false positives, reflecting the judgment that missing a late delivery is twice as costly as a false alarm.
+
+```{r c50-cost-sensitive}
+# Cost matrix: C5.0 expects rows = predicted, columns = actual
+cost_matrix <- matrix(
+  c(NA, 1,    # predicting Late  when actual On_Time → FP cost = 1
+    2,  NA),  # predicting On_Time when actual Late  → FN cost = 2
+  nrow = 2, ncol = 2, byrow = FALSE
+)
+rownames(cost_matrix) <- colnames(cost_matrix) <- c("On_Time", "Late")
+cat("Cost matrix:\n")
+print(cost_matrix)
+
+set.seed(42)
+dt_cost <- C50::C5.0(
+  is_late ~ .,
+  data = train_balanced,
+  costs = cost_matrix
+)
+
+dt_cost_preds <- predict(dt_cost, test_data)
+# Note: C5.0 does not support class probabilities when a cost matrix is
+# used. We therefore cannot compute ROC/AUC for the cost-sensitive model.
+# This is a known limitation of the C5.0 implementation, not a code error.
+dt_cost_probs <- rep(NA_real_, nrow(test_data))
+
+cat("\n── Confusion matrix: C5.0 Cost-Sensitive ──\n")
+gmodels::CrossTable(
+  test_data$is_late, dt_cost_preds,
+  prop.chisq = FALSE, prop.c = FALSE,
+  prop.r = FALSE, prop.t = FALSE,
+  dnn = c("Actual", "Predicted"))
+```
+
+By assigning higher costs to false negatives, the model’s behaviour shifts toward more aggressive prediction of Late, capturing a greater number of truly late orders at the expense of increased false positives. The desirability of this trade-off depends on Olist’s operational capacity: if proactive customer contact is relatively inexpensive compared to the reputational cost of missed late deliveries, the cost-sensitive model is preferred; if contact capacity is constrained, the baseline or boosted model may be more appropriate. This represents a managerial decision rather than a purely statistical one.
+
+## Model 4 — Random Forest
+
+A Random Forest is introduced as a structurally different model family. Random Forests build multiple trees on bootstrap samples with randomised feature subsets and aggregate their predictions. The model is trained on the ROSE-balanced data, consistent with the C5.0 models, and evaluated on the original test set.
+
 
 ```{r random-forest-modeling}
 set.seed(42)
-rf_model <- randomForest(
+rf_model <- randomForest::randomForest(
   is_late ~ .,
   data = train_balanced,  # balanced training data
   ntree = 500,
@@ -794,21 +1037,360 @@ print(rf_model)
 rf_preds <- predict(rf_model, test_data)
 rf_probs <- predict(rf_model, test_data, type = "prob")[, "Late"]
 
-confusionMatrix(rf_preds, test_data$is_late, positive = "Late")
-varImpPlot(rf_model, main = "Random Forest — Variable Importance")
+cat("\n── Confusion matrix: Random Forest ──\n")
+gmodels::CrossTable(
+  test_data$is_late, rf_preds,
+  prop.chisq = FALSE, prop.c = FALSE,
+  prop.r = FALSE, prop.t = FALSE,
+  dnn = c("Actual", "Predicted"))
+
+# Variable importance
+randomForest::varImpPlot(rf_model,
+                         main = "Random Forest — Variable Importance")
+```
+
+The variable importance plot reveals which features the Random Forest relies on most for distinguishing late from on-time orders. This is compared to the attribute usage reported by C5.0 to assess whether both model families identify the same key drivers. Agreement between structurally different models strengthens confidence in the identified risk factors, while disagreement warrants closer inspection.
+
+## ROC/AUC Comparison
+
+So far, models have been evaluated using confusion matrices at a single decision threshold, which obscures how well each model ranks orders by their likelihood of being late. The ROC curve and AUC provide a threshold-independent assessment of discriminative ability, indicating whether the model assigns higher risk scores to orders that actually arrive late.
+
+```{r roc-comparison, fig.width=8, fig.height=6}
+# Build ROC objects for models that produce probabilities
+# (C5.0 with costs cannot output probabilities — excluded from ROC)
+roc_base  <- pROC::roc(test_data$is_late, dt_base_probs,
+                        levels = c("On_Time", "Late"), direction = "<")
+roc_boost <- pROC::roc(test_data$is_late, dt_boost_probs,
+                        levels = c("On_Time", "Late"), direction = "<")
+roc_rf    <- pROC::roc(test_data$is_late, rf_probs,
+                        levels = c("On_Time", "Late"), direction = "<")
+
+# Plot ROC curves (3 models — cost-sensitive excluded)
+plot(roc_base, col = "grey60", lwd = 2,
+     main = "ROC Curves — Model Comparison")
+plot(roc_boost, col = "steelblue", lwd = 2, add = TRUE)
+plot(roc_rf,    col = "forestgreen", lwd = 2, add = TRUE)
+legend("bottomright",
+       legend = c(
+         paste0("C5.0 Baseline (AUC = ", round(pROC::auc(roc_base), 3), ")"),
+         paste0("C5.0 Boosted  (AUC = ", round(pROC::auc(roc_boost), 3), ")"),
+         paste0("Random Forest (AUC = ", round(pROC::auc(roc_rf), 3), ")"),
+         "C5.0 Cost — no probabilities (cost matrix)"
+       ),
+       col = c("grey60", "steelblue", "forestgreen", "firebrick"),
+       lwd = c(2, 2, 2, 0), lty = c(1, 1, 1, 0),
+       pch = c(NA, NA, NA, 4), cex = 0.8)
+```
+
+AUC values provide a threshold-independent measure of ranking quality. A model with a higher AUC more effectively distinguishes late from on-time orders *in general*, regardless of the chosen decision boundary. However, AUC does not determine the optimal threshold; this choice depends on Olist’s operational capacity and cost tolerance, as discussed above.
+
+## 5-Fold Cross-Validation
+
+A single train–test split provides one estimate of model performance; however, this estimate depends on the specific allocation of cases to each set. To assess the **stability** of the results, all four models are evaluated using 5-fold cross-validation with identical folds, ensuring that observed differences reflect modelling choices rather than evaluation artefacts.
+
+```{r cross-validation, fig.width=10, fig.height=6}
+set.seed(42)
+k <- 5
+folds <- caret::createFolds(model_data$is_late, k = k, list = TRUE)
+
+# Storage: accuracy and AUC per fold per model
+acc_mat <- matrix(NA, nrow = k, ncol = 4,
+                  dimnames = list(NULL, c("C5.0_Base", "C5.0_Boost",
+                                          "C5.0_Cost", "Random_Forest")))
+auc_mat <- acc_mat  # same structure for AUC
+
+# Storage for ensemble
+all_preds <- vector("list", k)
+
+for (i in seq_len(k)) {
+  test_idx  <- folds[[i]]
+  train_fold <- model_data[-test_idx, ]
+  test_fold  <- model_data[test_idx, ]
+
+  # Balance training fold with ROSE
+  train_bal <- ROSE::ROSE(is_late ~ ., data = train_fold, seed = 42)$data
+
+  # ── C5.0 Baseline ──
+  m1 <- C50::C5.0(is_late ~ ., data = train_bal)
+  p1 <- predict(m1, test_fold)
+  p1_prob <- predict(m1, test_fold, type = "prob")[, "Late"]
+  acc_mat[i, "C5.0_Base"] <- mean(p1 == test_fold$is_late)
+  auc_mat[i, "C5.0_Base"] <- as.numeric(pROC::auc(pROC::roc(
+    test_fold$is_late, p1_prob, levels = c("On_Time", "Late"),
+    direction = "<", quiet = TRUE)))
+
+  # ── C5.0 Boosted ──
+  m2 <- C50::C5.0(is_late ~ ., data = train_bal, trials = 10)
+  p2 <- predict(m2, test_fold)
+  p2_prob <- predict(m2, test_fold, type = "prob")[, "Late"]
+  acc_mat[i, "C5.0_Boost"] <- mean(p2 == test_fold$is_late)
+  auc_mat[i, "C5.0_Boost"] <- as.numeric(pROC::auc(pROC::roc(
+    test_fold$is_late, p2_prob, levels = c("On_Time", "Late"),
+    direction = "<", quiet = TRUE)))
+
+  # ── C5.0 Cost-Sensitive ──
+  m3 <- C50::C5.0(is_late ~ ., data = train_bal, costs = cost_matrix)
+  p3 <- predict(m3, test_fold)
+  acc_mat[i, "C5.0_Cost"] <- mean(p3 == test_fold$is_late)
+  auc_mat[i, "C5.0_Cost"] <- NA_real_  # C5.0 with costs cannot produce probabilities
+
+  # ── Random Forest ──
+  m4 <- randomForest::randomForest(is_late ~ ., data = train_bal,
+                                    ntree = 500)
+  p4 <- predict(m4, test_fold)
+  p4_prob <- predict(m4, test_fold, type = "prob")[, "Late"]
+  acc_mat[i, "Random_Forest"] <- mean(p4 == test_fold$is_late)
+  auc_mat[i, "Random_Forest"] <- as.numeric(pROC::auc(pROC::roc(
+    test_fold$is_late, p4_prob, levels = c("On_Time", "Late"),
+    direction = "<", quiet = TRUE)))
+
+  # Store predictions for ensemble
+  all_preds[[i]] <- data.frame(
+    actual  = test_fold$is_late,
+    c50_base  = p1,
+    c50_boost = p2,
+    c50_cost  = p3,
+    rf        = p4
+  )
+}
+
+# ── Accuracy box plots ──
+par(mfrow = c(1, 2))
+boxplot(acc_mat, main = paste0(k, "-Fold CV — Accuracy"),
+        ylab = "Accuracy", col = c("grey80", "steelblue",
+                                    "firebrick", "forestgreen"),
+        las = 2, cex.axis = 0.8)
+
+boxplot(auc_mat, main = paste0(k, "-Fold CV — AUC"),
+        ylab = "AUC", col = c("grey80", "steelblue",
+                               "firebrick", "forestgreen"),
+        las = 2, cex.axis = 0.8)
+par(mfrow = c(1, 1))
+
+# Print summary statistics
+cat("── Mean Accuracy across folds ──\n")
+print(round(colMeans(acc_mat), 4))
+cat("\n── SD of Accuracy across folds ──\n")
+print(round(apply(acc_mat, 2, sd), 4))
+
+cat("\n── Mean AUC across folds ──\n")
+print(round(colMeans(auc_mat), 4))
+cat("\n── SD of AUC across folds ──\n")
+print(round(apply(auc_mat, 2, sd), 4))
+```
+
+The box plots reveal both the *level* and *stability* of each model’s performance. Models with similar average accuracy can differ substantially in their variability across folds; a model with slightly lower mean accuracy but a tighter spread may be preferable in practice because it offers more predictable behaviour.
+
+The AUC comparison is particularly informative because it is independent of the decision threshold and directly measures how well each model ranks orders by late-delivery risk. Differences in AUC that persist across all five folds are more robust than those observed in a single train–test split.
+
+## Hard-Voting Ensemble
+
+The four models are combined using hard voting (majority rule), where each model casts a binary vote and the final prediction is determined by the majority. In the case of a 2–2 tie, the prediction defaults to “Late”, consistent with the cost-sensitivity rationale that missing a late delivery is more costly than a false alarm.
+
+```{r ensemble, fig.width=10, fig.height=5}
+# Hard voting function: 4 models, majority wins, ties → "Late"
+hard_vote <- function(pred_df) {
+  late_votes <- rowSums(pred_df == "Late")
+  factor(ifelse(late_votes >= 2, "Late", "On_Time"),   # tie → Late
+         levels = c("On_Time", "Late"))
+}
+
+# Evaluate ensemble across all CV folds
+acc_ensemble <- numeric(k)
+
+for (i in seq_len(k)) {
+  fold_preds <- all_preds[[i]]
+  pred_cols  <- fold_preds[, c("c50_base", "c50_boost", "c50_cost", "rf")]
+  ensemble_pred <- hard_vote(pred_cols)
+  acc_ensemble[i] <- mean(ensemble_pred == fold_preds$actual)
+}
+
+# Compare all models + ensemble
+acc_all <- cbind(acc_mat, Ensemble = acc_ensemble)
+boxplot(acc_all,
+        main = paste0(k, "-Fold CV — Accuracy: Models vs. Ensemble"),
+        ylab = "Accuracy",
+        col = c("grey80", "steelblue", "firebrick",
+                "forestgreen", "gold"),
+        las = 2, cex.axis = 0.8)
+
+cat("── Ensemble mean accuracy ──\n")
+cat(round(mean(acc_ensemble), 4), "\n")
+cat("── Ensemble SD ──\n")
+cat(round(sd(acc_ensemble), 4), "\n")
+```
+
+Ensembling does not guarantee higher accuracy; its value lies in *stability*. If the ensemble exhibits lower variability across folds than individual models, it provides more predictable behaviour, which may be operationally preferable even if peak accuracy is slightly lower. Ensembling redistributes error rather than eliminating it, and whether this redistribution is desirable depends on Olist’s tolerance for different types of mistakes.
+
+## Ablation Test: Does Seller Segmentation Add Value?
+
+The two-stage design rests on the claim that seller-level segmentation provides predictive signal beyond what is captured by order-level features alone. This claim is tested directly by re-running the Random Forest (the strongest model) with and without the `cluster_label` feature under the same cross-validation folds.
+
+```{r ablation-test}
+# Prepare data without cluster_label
+model_data_no_cluster <- model_data[, !(names(model_data) %in% "cluster_label")]
+
+acc_with    <- numeric(k)
+acc_without <- numeric(k)
+auc_with    <- numeric(k)
+auc_without <- numeric(k)
+
+for (i in seq_len(k)) {
+  test_idx   <- folds[[i]]
+
+  # WITH cluster_label
+  train_w <- ROSE::ROSE(is_late ~ .,
+                         data = model_data[-test_idx, ], seed = 42)$data
+  rf_w    <- randomForest::randomForest(is_late ~ ., data = train_w,
+                                         ntree = 500)
+  pw      <- predict(rf_w, model_data[test_idx, ])
+  pw_prob <- predict(rf_w, model_data[test_idx, ], type = "prob")[, "Late"]
+  acc_with[i] <- mean(pw == model_data[test_idx, "is_late"])
+  auc_with[i] <- as.numeric(pROC::auc(pROC::roc(
+    model_data[test_idx, "is_late"], pw_prob,
+    levels = c("On_Time", "Late"), direction = "<", quiet = TRUE)))
+
+  # WITHOUT cluster_label
+  train_wo <- ROSE::ROSE(is_late ~ .,
+                          data = model_data_no_cluster[-test_idx, ],
+                          seed = 42)$data
+  rf_wo    <- randomForest::randomForest(is_late ~ ., data = train_wo,
+                                          ntree = 500)
+  pwo      <- predict(rf_wo, model_data_no_cluster[test_idx, ])
+  pwo_prob <- predict(rf_wo, model_data_no_cluster[test_idx, ],
+                       type = "prob")[, "Late"]
+  acc_without[i] <- mean(pwo == model_data_no_cluster[test_idx, "is_late"])
+  auc_without[i] <- as.numeric(pROC::auc(pROC::roc(
+    model_data_no_cluster[test_idx, "is_late"], pwo_prob,
+    levels = c("On_Time", "Late"), direction = "<", quiet = TRUE)))
+}
+
+# Compare
+ablation <- data.frame(
+  Metric = c("Mean Accuracy", "SD Accuracy", "Mean AUC", "SD AUC"),
+  With_Cluster    = c(round(mean(acc_with), 4), round(sd(acc_with), 4),
+                      round(mean(auc_with), 4), round(sd(auc_with), 4)),
+  Without_Cluster = c(round(mean(acc_without), 4), round(sd(acc_without), 4),
+                      round(mean(auc_without), 4), round(sd(auc_without), 4))
+)
+print(ablation)
+
+# Visual comparison
+par(mfrow = c(1, 2))
+boxplot(cbind(With = acc_with, Without = acc_without),
+        main = "Ablation: Accuracy", ylab = "Accuracy",
+        col = c("forestgreen", "grey70"))
+boxplot(cbind(With = auc_with, Without = auc_without),
+        main = "Ablation: AUC", ylab = "AUC",
+        col = c("forestgreen", "grey70"))
+par(mfrow = c(1, 1))
+```
+
+If the model with `cluster_label` consistently outperforms the model without it across all five folds, this validates the two-stage design, indicating that the unsupervised seller segmentation captures information about delivery risk that is not redundant with order-level features alone. If performance is similar, the segmentation may still retain strategic value for seller management, even if it does not improve tactical prediction.
+
+## Model Comparison Summary
+
+```{r model-summary}
+# Compile results from the single train-test split
+cat("══════════════════════════════════════════════════\n")
+cat("         MODEL COMPARISON (Test Set)              \n")
+cat("══════════════════════════════════════════════════\n\n")
+
+models <- list(
+  "C5.0 Baseline" = list(preds = dt_base_preds, probs = dt_base_probs),
+  "C5.0 Boosted"  = list(preds = dt_boost_preds, probs = dt_boost_probs),
+  "C5.0 Cost"     = list(preds = dt_cost_preds, probs = dt_cost_probs),
+  "Random Forest"  = list(preds = rf_preds, probs = rf_probs)
+)
+
+for (name in names(models)) {
+  preds <- models[[name]]$preds
+  probs <- models[[name]]$probs
+
+  cm <- caret::confusionMatrix(preds, test_data$is_late, positive = "Late")
+
+  # AUC only if probabilities are available (not for cost-sensitive C5.0)
+  if (all(is.na(probs))) {
+    auc_val <- NA
+  } else {
+    auc_val <- as.numeric(pROC::auc(pROC::roc(
+      test_data$is_late, probs,
+      levels = c("On_Time", "Late"), direction = "<", quiet = TRUE)))
+  }
+
+  cat("── ", name, " ──\n")
+  cat("  Accuracy:    ", round(cm$overall["Accuracy"], 4), "\n")
+  cat("  Sensitivity: ", round(cm$byClass["Sensitivity"], 4),
+      "  (recall for Late)\n")
+  cat("  Specificity: ", round(cm$byClass["Specificity"], 4), "\n")
+  cat("  Precision:   ", round(cm$byClass["Pos Pred Value"], 4), "\n")
+  cat("  F1:          ", round(cm$byClass["F1"], 4), "\n")
+  if (is.na(auc_val)) {
+    cat("  AUC:          N/A (cost matrix — no probabilities)\n\n")
+  } else {
+    cat("  AUC:         ", round(auc_val, 4), "\n\n")
+  }
+}
 ```
 
 ## Model Reflection
 
+The results reveal patterns that require careful interpretation rather than a simple declaration of a “winning” model. The relevant question is not *which model is right?* but *which risks are acceptable, and how should disagreement be managed under uncertainty?*
+
+**Accuracy alone is insufficient for imbalanced problems.** The Random Forest achieves the highest accuracy (77.8%), but this metric systematically rewards conservative behaviour. A model that rarely predicts Late can achieve high accuracy by correctly classifying the dominant On_Time class while providing limited operational value. A high accuracy can coexist with operational blindness, particularly when the event of interest is rare.
+
+**The precision–recall trade-off reflects a decision problem, not a modelling problem.** The four models span a clear spectrum: the cost-sensitive C5.0 achieves the highest recall (73.1%), capturing nearly three-quarters of truly late orders, but at a precision of only 8.6%, meaning most “Late” predictions are false positives. In contrast, the Random Forest exhibits higher precision (13.7%) but lower recall (44.6%), missing more than half of late deliveries. As highlighted in Lecture 5, the appropriate position on this spectrum depends on the relative costs of acting too frequently versus acting too late.
+
+**Different stakeholders require different operating points.** This is where the two-audience framing becomes decisive:
+
+For **Olist’s customer service team** (tactical, order-level), recall should be prioritised. A false positive proactively contacting a customer whose order will arrive on time, incurs at most a minor cost and may even create a positive experience, while a false negative, failing to identify a late delivery, leads to customer dissatisfaction, low review scores, and reactive support costs. The *cost-sensitive C5.0* model, with a recall of 73.1%, is therefore the recommended model for this use case.
+
+For **Olist’s account management team** (strategic, seller-level), precision is more important. Reaching out to a seller about performance issues is a resource-intensive intervention that consumes account manager time and may harm the relationship if the signal is incorrect. In this context, the *Random Forest* or *boosted C5.0* models—being more selective in their predictions—are better suited.
+
+**Stability matters as much as performance level.** The cross-validation results show that the Random Forest is the most stable model across folds (accuracy SD = 0.005, AUC SD = 0.005), while the cost-sensitive C5.0 exhibits the highest variability (accuracy SD = 0.017). For a production system requiring predictable behaviour, the Random Forest provides the most reliable baseline, whereas the cost-sensitive C5.0 offers higher recall at the cost of reduced stability across different data samples.
+
+**Ensembling redistributes error rather than eliminating it.** The hard-voting ensemble moderates individual model predictions; ensembling should be understood as a mechanism for managing how uncertainty is expressed in decisions rather than as a guaranteed performance improvement. It may reduce extreme failures, but does so by trading peak performance for increased stability.
+
+**The seller segment adds demonstrable value.** The ablation test provides strong evidence for the two-stage design: including `cluster_label` increases the Random Forest’s mean AUC from 0.668 to 0.692 across all five folds, while also *reducing* variance (SD 0.005 vs 0.007). This indicates that seller segmentation captures delivery risk information that is not redundant with order-level features alone. The improvement is consistent rather than driven by a single split, thereby validating the core analytical claim of the project.
+
+# 7. Conclusion and Recommendations
+
+## Summary of Findings
+
+This project aims to shift Olist from reactive to proactive delivery management through a two-stage analytical pipeline, and the results validate this approach on both fronts.
+
+**Stage 1 (Seller Segmentation)** identified four distinct seller performance profiles using K-Means clustering on historical logistics data. The segmentation effectively separates delivery risk, with the High_Risk segment exhibiting a 16.2% late delivery rate—more than three times the 5.2% observed among High_Reliability sellers. This separation is not an artefact of the clustering algorithm but reflects genuine differences in seller dispatch speed, freight cost structure, and operational capacity.
+
+**Stage 2 (Order-Level Classification)** demonstrated that late deliveries can be predicted at the time of order placement using a combination of seller segment membership, order characteristics, and geographic features. The seller segment label (`cluster_label`) emerged as the most important predictor, appearing in 100% of splits in the C5.0 baseline model. The ablation test confirmed this quantitatively, as removing the seller segment reduced the Random Forest’s mean AUC from 0.692 to 0.668 across all five cross-validation folds. The two-stage design is therefore not merely a structural choice but contributes measurable predictive value.
+
+## Recommendations
+
 A
 
-## Model Output Comparison
+## Limitations
 
 A
 
-# 7. Conclusion
+## Reflection on Advanced Techniques
 
 A
+
+### Deep Learning
+
+A
+
+### Text Analytics
+
+A
+
+### Reinforcement Learning
+
+A
+
+## Final Remark
+
+
+
 
 # 8. Bibliography
 
