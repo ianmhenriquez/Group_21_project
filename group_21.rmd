@@ -16,29 +16,20 @@ source("merging.r")
 # install and load packages
 install_and_load()
 
-# Load the data frames
-customer_frame <- load_data("archive/olist_customers_dataset.csv")
+# -- Load raw data -------------------------------------------------------
+orders_raw      <- read.csv("archive/olist_orders_dataset.csv")
+order_items_raw <- read.csv("archive/olist_order_items_dataset.csv")
+payments_raw    <- read.csv("archive/olist_order_payments_dataset.csv")
+customers_raw   <- read.csv("archive/olist_customers_dataset.csv")
+products_raw    <- read.csv("archive/olist_products_dataset.csv")
+sellers_raw     <- read.csv("archive/olist_sellers_dataset.csv")
+translation_raw <- read.csv("archive/product_category_name_translation.csv")
+reviews_raw     <- read.csv("archive/olist_order_reviews_dataset.csv")
 
-orders_frame <- load_data("archive/olist_orders_dataset.csv")
-order_items_frame <- load_data("archive/olist_order_items_dataset.csv")
-payment_frame <- load_data("archive/olist_order_payments_dataset.csv")
-
-product_frame <- load_data("archive/olist_products_dataset.csv")
-
-translation_frame <- load_data("archive/product_category_name_translation.csv")
-
-reviews_frame <- load_data("archive/olist_order_reviews_dataset.csv")
-sellers_frame <- load_data("archive/olist_sellers_dataset.csv")
-
-orders_enriched <- merge_olist_data(
-  orders_frame,
-  translation_frame,
-  order_items_frame,
-  payment_frame,
-  customer_frame,
-  sellers_frame,
-  product_frame
-)
+# merge and enrich orders dataset
+orders_enriched <- create_enriched_orders(orders_raw, order_items_raw, payments_raw, 
+                                          customers_raw, products_raw, sellers_raw, 
+                                          translation_raw)
 
 late_rate <- round(mean(orders_enriched$is_late == "Late") * 100, 1)
 ```
@@ -72,15 +63,7 @@ This pipeline enables a dual-pronged strategy. **Strategically**, Olist can use 
 The intended audiences are therefore (1) Olist’s **account management team**, who would use the seller segmentation to inform seller relationship strategies, and (2) Olist’s **customer service operations**, who would use the order-level predictions to prioritise proactive outreach.
 
 ```{r proof-of-concept, echo=FALSE}
-# ── Load raw data ───────────────────────────────────────────────────────
-orders_raw      <- read.csv("archive/olist_orders_dataset.csv")
-order_items_raw <- read.csv("archive/olist_order_items_dataset.csv")
-payments_raw    <- read.csv("archive/olist_order_payments_dataset.csv")
-customers_raw   <- read.csv("archive/olist_customers_dataset.csv")
-products_raw    <- read.csv("archive/olist_products_dataset.csv")
-sellers_raw     <- read.csv("archive/olist_sellers_dataset.csv")
-translation_raw <- read.csv("archive/product_category_name_translation.csv")
-reviews_raw     <- read.csv("archive/olist_order_reviews_dataset.csv")
+
 
 # Quick proof-of-concept: late delivery → lower reviews
 poc <- merge(orders_raw[, c("order_id",
@@ -208,78 +191,11 @@ The merge follows a deliberate sequence. Each table is first prepared independen
 
 **Step 5: Final join.** The enriched orders spine is joined to the enriched `order_items` table via `order_id`, producing the analysis-ready dataset.
 
-```{r merge-pipeline}
-# ── Step 1: Aggregate payments to order level ───────────────────────────
-payments_agg <- aggregate(
-  cbind(payment_value, payment_installments) ~ order_id,
-  data = payments_raw,
-  FUN = function(x) c(total = sum(x), max = max(x))
-)
-payments_agg <- data.frame(
-  order_id                = payments_agg$order_id,
-  payment_value_total     = payments_agg$payment_value[, "total"],
-  payment_installments_max = payments_agg$payment_installments[, "max"]
-)
-
-# ── Step 2: Translate product categories ────────────────────────────────
-products <- merge(products_raw, translation_raw,
-                  by = "product_category_name", all.x = TRUE)
-products$product_category_name_english[
-  is.na(products$product_category_name_english)] <- "Miscellaneous"
-# Drop columns not needed downstream
-products <- products[, !(names(products) %in%
-  c("product_category_name", "product_name_lenght",
-    "product_description_lenght", "product_photos_qty"))]
-
-# ── Step 3: Enrich order items ──────────────────────────────────────────
-order_items_enriched <- merge(order_items_raw, products,
-                              by = "product_id", all.x = TRUE)
-order_items_enriched <- merge(order_items_enriched, sellers_raw,
-                              by = "seller_id", all.x = TRUE)
-
-# ── Step 4: Prepare orders spine ────────────────────────────────────────
-orders <- orders_raw
-
-# Some date columns contain empty strings ("") instead of NA for orders
-# that were not yet approved, shipped, or delivered. read.csv() imports
-# these as "" rather than NA, which causes as.POSIXct/as.Date to fail.
-# We convert empty strings to NA before parsing.
-date_cols <- c("order_purchase_timestamp", "order_approved_at",
-               "order_delivered_carrier_date", "order_delivered_customer_date",
-               "order_estimated_delivery_date")
-for (col in date_cols) {
-  orders[[col]][orders[[col]] == ""] <- NA
-}
-
-orders$order_purchase_timestamp      <- as.POSIXct(orders$order_purchase_timestamp)
-orders$order_approved_at             <- as.POSIXct(orders$order_approved_at)
-orders$order_delivered_carrier_date  <- as.Date(orders$order_delivered_carrier_date)
-orders$order_delivered_customer_date <- as.Date(orders$order_delivered_customer_date)
-orders$order_estimated_delivery_date <- as.Date(orders$order_estimated_delivery_date)
-
-# Join payments and customers
-orders <- merge(orders, payments_agg, by = "order_id", all.x = TRUE)
-orders <- merge(orders, customers_raw, by = "customer_id", all.x = TRUE)
-
-# Filter to delivered orders with both delivery dates present
-orders <- orders[
-  !is.na(orders$order_delivered_customer_date) &
-  !is.na(orders$order_estimated_delivery_date), ]
-
-# Construct target variable
-orders$is_late <- factor(
-  ifelse(orders$order_delivered_customer_date >
-           orders$order_estimated_delivery_date, "Late", "On_Time"),
-  levels = c("On_Time", "Late"))
-
-orders$delivery_delay_days <- as.numeric(difftime(
-  orders$order_delivered_customer_date,
-  orders$order_estimated_delivery_date,
-  units = "days"))
-
-# ── Step 5: Final join ──────────────────────────────────────────────────
-orders_enriched <- merge(orders, order_items_enriched,
-                         by = "order_id", all.x = TRUE)
+```{r merge-pipeline, eval=FALSE}
+# call merge function to show the full pipeline in one place
+orders_enriched <- create_enriched_orders(orders_raw, order_items_raw, payments_raw, 
+                                          customers_raw, products_raw, sellers_raw, 
+                                          translation_raw)
 
 cat("Final dataset dimensions:", nrow(orders_enriched), "rows,",
     ncol(orders_enriched), "columns\n")
@@ -295,7 +211,7 @@ cat("Late rate:", late_rate, "%\n")
 cat("Total labelled orders:", nrow(orders_enriched), "\n")
 ```
 
-The late delivery rate of approximately `r late_rate%` means this is a moderately imbalanced classification problem. The majority class (on-time) outnumbers the minority class (late) by roughly 9:1. This has direct implications for modelling: a naive classifier that always predicts “On_Time” would achieve `r round(100 - late_rate, 1)`% accuracy while being entirely ineffective for the business objective of identifying at-risk orders. This imbalance is addressed explicitly in the modelling stage through cost-sensitive learning and resampling.
+The late delivery rate of approximately `r late_rate`% means this is a moderately imbalanced classification problem. The majority class (on-time) outnumbers the minority class (late) by roughly 9:1. This has direct implications for modelling: a naive classifier that always predicts “On_Time” would achieve `r round(100 - late_rate, 1)`% accuracy while being entirely ineffective for the business objective of identifying at-risk orders. This imbalance is addressed explicitly in the modelling stage through cost-sensitive learning and resampling.
 
 # 3. Data Exploration Philippe
 
@@ -374,7 +290,7 @@ par(mfrow = c(1, 1))
 All four variables exhibit pronounced right skewness, with long tails driven by high-value orders, heavy products, and expensive shipping routes. The log-transformed distributions (right column) are substantially more symmetric. The transformation `log1p()` — the natural logarithm of `(1 + x)` — is applied, as it handles zero values gracefully and compresses the tails without losing rank-order information.
 
 ```{r skewness-check}
-cat("── Skewness before transformation ──\n")
+cat("-- Skewness before transformation --\n")
 cat("  price:              ", round(e1071::skewness(orders_enriched$price, na.rm = TRUE), 2), "\n")
 cat("  freight_value:      ", round(e1071::skewness(orders_enriched$freight_value, na.rm = TRUE), 2), "\n")
 cat("  payment_value_total:", round(e1071::skewness(orders_enriched$payment_value_total, na.rm = TRUE), 2), "\n")
@@ -417,7 +333,7 @@ orders_enriched$freight_value_log       <- log1p(orders_enriched$freight_value)
 orders_enriched$payment_value_total_log <- log1p(orders_enriched$payment_value_total)
 orders_enriched$product_weight_g_log    <- log1p(orders_enriched$product_weight_g)
 # Check skewness after transformation
-cat("── Skewness after transformation ──\n")
+cat("-- Skewness after transformation --\n")
 cat("  price_log:              ", round(e1071::skewness(orders_enriched$price_log, na.rm = TRUE), 2), "\n")
 cat("  freight_value_log:      ", round(e1071::skewness(orders_enriched$freight_value_log, na.rm = TRUE), 2), "\n")
 cat("  payment_value_total_log:", round(e1071::skewness(orders_enriched$payment_value_total_log, na.rm = TRUE), 2), "\n")
@@ -608,10 +524,10 @@ cluster_means <- aggregate(
   data = seller_profiles_clean,
   FUN = mean
 )
-cat("── Cluster means (original scale) ──\n")
+cat("-- Cluster means (original scale) --\n")
 print(round(cluster_means, 3))
 
-cat("\n── Cluster sizes ──\n")
+cat("\n-- Cluster sizes --\n")
 print(table(seller_profiles_clean$cluster))
 ```
 
@@ -630,8 +546,8 @@ factoextra::fviz_cluster(
 Based on the cluster means, interpretable labels are assigned. These labels must be inspected and, if necessary, adjusted after examining the actual `cluster_means` output, as K-Means cluster numbering is arbitrary and may change across runs, even with the same seed, if the data changes.
 
 ```{r cluster-labels}
-# ── IMPORTANT: Inspect cluster_means output above and verify these ──
-# ── mappings match the actual cluster profiles before proceeding.   ──
+# -- IMPORTANT: Inspect cluster_means output above and verify these --
+# -- mappings match the actual cluster profiles before proceeding.   --
 # The labels below are based on expected patterns; adjust as needed.
 
 seller_profiles_clean$cluster_label <- dplyr::case_when(
@@ -642,7 +558,7 @@ seller_profiles_clean$cluster_label <- dplyr::case_when(
   TRUE ~ "Unknown"
 )
 
-cat("── Seller segment distribution ──\n")
+cat("-- Seller segment distribution --\n")
 print(table(seller_profiles_clean$cluster_label))
 ```
 
@@ -817,18 +733,18 @@ lda_late <- seededlda::textmodel_lda(dfm_late, k = 2)
 # Topic model on on-time reviews (k=2 topics)
 lda_ontime <- seededlda::textmodel_lda(dfm_ontime, k = 2)
 
-cat("── Topics in LATE delivery reviews ──\n")
+cat("-- Topics in LATE delivery reviews --\n")
 print(seededlda::terms(lda_late, 10))
 
-cat("\n── Topics in ON-TIME delivery reviews ──\n")
+cat("\n-- Topics in ON-TIME delivery reviews --\n")
 print(seededlda::terms(lda_ontime, 10))
 ```
 
 ```{r text-topic-sizes}
-cat("── Topic distribution (Late reviews) ──\n")
+cat("-- Topic distribution (Late reviews) --\n")
 print(table(seededlda::topics(lda_late)))
 
-cat("\n── Topic distribution (On-Time reviews) ──\n")
+cat("\n-- Topic distribution (On-Time reviews) --\n")
 print(table(seededlda::topics(lda_ontime)))
 ```
 
@@ -845,13 +761,13 @@ The task is framed as a binary classification problem, where each order is class
 
 **C5.0 Decision Trees** are selected as the primary modelling family because they produce transparent, rule-based classifications that can be directly inspected and communicated to Olist’s operations team. Decision trees recursively partition the feature space using locally optimal splits. Their key strengths in this context are interpretability (the tree structure reveals *which* features drive late delivery risk) and native handling of categorical predictors (seller segment, customer state), while their main limitation is instability, as small changes in the training data can produce substantially different trees.
 
-*Random Forests** are selected as the second modelling family because they address the instability limitation of single trees through aggregation. A Random Forest builds multiple trees on bootstrap samples with randomised feature subsets and combines their predictions via majority vote, reducing sensitivity to individual data splits at the cost of interpretability — a trade-off that is evaluated explicitly below.
+**Random Forests** are selected as the second modelling family because they address the instability limitation of single trees through aggregation. A Random Forest builds multiple trees on bootstrap samples with randomised feature subsets and combines their predictions via majority vote, reducing sensitivity to individual data splits at the cost of interpretability — a trade-off that is evaluated explicitly below.
 
 Deep learning is deliberately **not** implemented for this task, as the dataset is tabular with well-defined features rather than high-dimensional unstructured data (e.g., images or text). Neural networks would introduce additional complexity without a clear representational advantage, and the resulting loss of interpretability would directly undermine the business objective of explaining risk factors to Olist’s account managers. This modelling choice is further reflected upon in the Conclusion.
 
 ## Preparing the Modelling Dataset
 
-Features for the classification model are selected based on their availability at the time of order placement (to avoid temporal leakage) and their relevance to delivery performance. The cluster_label serves as the key strategic feature, while the remaining predictors capture order-level characteristics.
+Features for the classification model are selected based on their availability at the time of order placement (to avoid temporal leakage) and their relevance to delivery performance. The `cluster_label` serves as the key strategic feature, while the remaining predictors capture order-level characteristics.
 
 ```{r modeling-data-split}
 # Prepare modeling dataset with engineered features
@@ -908,7 +824,7 @@ With approximately 90% of orders arriving on time, a naive classifier that alway
 
 ```{r class-imbalance}
 # Show the imbalance problem explicitly
-cat("── Class distribution (training set) ──\n")
+cat("-- Class distribution (training set) --\n")
 print(table(train_data$is_late))
 cat("Proportions:", round(prop.table(table(train_data$is_late)), 3), "\n")
 
@@ -918,7 +834,7 @@ library(ROSE)
 set.seed(42)
 train_balanced <- ROSE::ROSE(is_late ~ ., data = train_data, seed = 42)$data
 
-cat("\n── Class distribution after ROSE ──\n")
+cat("\n-- Class distribution after ROSE --\n")
 print(table(train_balanced$is_late))
 cat("Proportions:", round(prop.table(table(train_balanced$is_late)), 3), "\n")
 ```
@@ -936,16 +852,16 @@ dt_baseline <- C50::C5.0(
 )
 
 # Print only the attribute usage (not the full tree)
-cat("── Tree size ──\n")
+cat("-- Tree size --\n")
 cat("Nodes:", dt_baseline$size, "\n\n")
-cat("── Attribute usage ──\n")
+cat("-- Attribute usage --\n")
 print(C50::C5imp(dt_baseline, metric = "usage"))
 
 # Predict on ORIGINAL (unbalanced) test set
 dt_base_preds <- predict(dt_baseline, test_data)
 dt_base_probs <- predict(dt_baseline, test_data, type = "prob")[, "Late"]
 
-cat("\n── Confusion matrix: C5.0 Baseline ──\n")
+cat("\n-- Confusion matrix: C5.0 Baseline --\n")
 gmodels::CrossTable(
   test_data$is_late, dt_base_preds,
   prop.chisq = FALSE, prop.c = FALSE,
@@ -970,7 +886,7 @@ dt_boosted <- C50::C5.0(
 dt_boost_preds <- predict(dt_boosted, test_data)
 dt_boost_probs <- predict(dt_boosted, test_data, type = "prob")[, "Late"]
 
-cat("── Confusion matrix: C5.0 Boosted (10 trials) ──\n")
+cat("-- Confusion matrix: C5.0 Boosted (10 trials) --\n")
 gmodels::CrossTable(
   test_data$is_late, dt_boost_preds,
   prop.chisq = FALSE, prop.c = FALSE,
@@ -1008,7 +924,7 @@ dt_cost_preds <- predict(dt_cost, test_data)
 # This is a known limitation of the C5.0 implementation, not a code error.
 dt_cost_probs <- rep(NA_real_, nrow(test_data))
 
-cat("\n── Confusion matrix: C5.0 Cost-Sensitive ──\n")
+cat("\n-- Confusion matrix: C5.0 Cost-Sensitive --\n")
 gmodels::CrossTable(
   test_data$is_late, dt_cost_preds,
   prop.chisq = FALSE, prop.c = FALSE,
@@ -1037,7 +953,7 @@ print(rf_model)
 rf_preds <- predict(rf_model, test_data)
 rf_probs <- predict(rf_model, test_data, type = "prob")[, "Late"]
 
-cat("\n── Confusion matrix: Random Forest ──\n")
+cat("\n-- Confusion matrix: Random Forest --\n")
 gmodels::CrossTable(
   test_data$is_late, rf_preds,
   prop.chisq = FALSE, prop.c = FALSE,
@@ -1110,7 +1026,7 @@ for (i in seq_len(k)) {
   # Balance training fold with ROSE
   train_bal <- ROSE::ROSE(is_late ~ ., data = train_fold, seed = 42)$data
 
-  # ── C5.0 Baseline ──
+  # -- C5.0 Baseline --
   m1 <- C50::C5.0(is_late ~ ., data = train_bal)
   p1 <- predict(m1, test_fold)
   p1_prob <- predict(m1, test_fold, type = "prob")[, "Late"]
@@ -1119,7 +1035,7 @@ for (i in seq_len(k)) {
     test_fold$is_late, p1_prob, levels = c("On_Time", "Late"),
     direction = "<", quiet = TRUE)))
 
-  # ── C5.0 Boosted ──
+  # -- C5.0 Boosted --
   m2 <- C50::C5.0(is_late ~ ., data = train_bal, trials = 10)
   p2 <- predict(m2, test_fold)
   p2_prob <- predict(m2, test_fold, type = "prob")[, "Late"]
@@ -1128,13 +1044,13 @@ for (i in seq_len(k)) {
     test_fold$is_late, p2_prob, levels = c("On_Time", "Late"),
     direction = "<", quiet = TRUE)))
 
-  # ── C5.0 Cost-Sensitive ──
+  # -- C5.0 Cost-Sensitive --
   m3 <- C50::C5.0(is_late ~ ., data = train_bal, costs = cost_matrix)
   p3 <- predict(m3, test_fold)
   acc_mat[i, "C5.0_Cost"] <- mean(p3 == test_fold$is_late)
   auc_mat[i, "C5.0_Cost"] <- NA_real_  # C5.0 with costs cannot produce probabilities
 
-  # ── Random Forest ──
+  # -- Random Forest --
   m4 <- randomForest::randomForest(is_late ~ ., data = train_bal,
                                     ntree = 500)
   p4 <- predict(m4, test_fold)
@@ -1154,7 +1070,7 @@ for (i in seq_len(k)) {
   )
 }
 
-# ── Accuracy box plots ──
+# -- Accuracy box plots --
 par(mfrow = c(1, 2))
 boxplot(acc_mat, main = paste0(k, "-Fold CV — Accuracy"),
         ylab = "Accuracy", col = c("grey80", "steelblue",
@@ -1168,14 +1084,14 @@ boxplot(auc_mat, main = paste0(k, "-Fold CV — AUC"),
 par(mfrow = c(1, 1))
 
 # Print summary statistics
-cat("── Mean Accuracy across folds ──\n")
+cat("-- Mean Accuracy across folds --\n")
 print(round(colMeans(acc_mat), 4))
-cat("\n── SD of Accuracy across folds ──\n")
+cat("\n-- SD of Accuracy across folds --\n")
 print(round(apply(acc_mat, 2, sd), 4))
 
-cat("\n── Mean AUC across folds ──\n")
+cat("\n-- Mean AUC across folds --\n")
 print(round(colMeans(auc_mat), 4))
-cat("\n── SD of AUC across folds ──\n")
+cat("\n-- SD of AUC across folds --\n")
 print(round(apply(auc_mat, 2, sd), 4))
 ```
 
@@ -1214,9 +1130,9 @@ boxplot(acc_all,
                 "forestgreen", "gold"),
         las = 2, cex.axis = 0.8)
 
-cat("── Ensemble mean accuracy ──\n")
+cat("-- Ensemble mean accuracy --\n")
 cat(round(mean(acc_ensemble), 4), "\n")
-cat("── Ensemble SD ──\n")
+cat("-- Ensemble SD --\n")
 cat(round(sd(acc_ensemble), 4), "\n")
 ```
 
@@ -1292,9 +1208,9 @@ If the model with `cluster_label` consistently outperforms the model without it 
 
 ```{r model-summary}
 # Compile results from the single train-test split
-cat("══════════════════════════════════════════════════\n")
+cat("==================================================\n")
 cat("         MODEL COMPARISON (Test Set)              \n")
-cat("══════════════════════════════════════════════════\n\n")
+cat("==================================================\n\n")
 
 models <- list(
   "C5.0 Baseline" = list(preds = dt_base_preds, probs = dt_base_probs),
@@ -1318,7 +1234,7 @@ for (name in names(models)) {
       levels = c("On_Time", "Late"), direction = "<", quiet = TRUE)))
   }
 
-  cat("── ", name, " ──\n")
+  cat("-- ", name, " --\n")
   cat("  Accuracy:    ", round(cm$overall["Accuracy"], 4), "\n")
   cat("  Sensitivity: ", round(cm$byClass["Sensitivity"], 4),
       "  (recall for Late)\n")
