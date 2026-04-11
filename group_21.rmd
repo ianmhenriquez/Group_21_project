@@ -1,9 +1,9 @@
 ---
 title: "Group 21 Project"
 output:
-  pdf_document: default
-  word_document: default
   html_document: default
+  word_document: default
+  pdf_document: default
 editor_options: 
   markdown: 
     wrap: 72
@@ -213,7 +213,7 @@ cat("Total labelled orders:", nrow(orders_enriched), "\n")
 
 The late delivery rate of approximately `r late_rate`% means this is a moderately imbalanced classification problem. The majority class (on-time) outnumbers the minority class (late) by roughly 9:1. This has direct implications for modelling: a naive classifier that always predicts “On_Time” would achieve `r round(100 - late_rate, 1)`% accuracy while being entirely ineffective for the business objective of identifying at-risk orders. This imbalance is addressed explicitly in the modelling stage through cost-sensitive learning and resampling.
 
-# 3. Data Exploration Philippe
+# 3. Data Exploration
 
 With an overview of the dataset established, the next step focuses on exploring its internal structure. This analysis enables informed decisions regarding data cleaning, filtering, and restructuring. Specifically, variables are assessed for completeness, consistency, and relevance, ensuring that only analytically meaningful data is retained. This stage prepares the dataset for subsequent feature engineering and modelling.
 
@@ -340,7 +340,7 @@ cat("  payment_value_total_log:", round(e1071::skewness(orders_enriched$payment_
 cat("  product_weight_g_log:   ", round(e1071::skewness(orders_enriched$product_weight_g_log, na.rm = TRUE), 2), "\n")
 ```
 
-# 5. Feature Engineering and Dimensionality Reduction Ian/Philippe
+# 5. Feature Engineering and Dimensionality Reduction
 
 ## Seller-Level Feature Engineering
 
@@ -737,10 +737,19 @@ cat("\n-- Topic distribution (On-Time reviews) --\n")
 print(table(seededlda::topics(lda_ontime)))
 ```
 
-### Interpretation (Jonas)
+### Interpretation
 
+The models reveal distinct thematic patterns that align with the delivery experience captured by the `is_late` label.
 
-# 6. Modeling Giannis/Joeri
+**Late-delivery reviews** surface two interpretable topics. Topic 1 centres on frustration with the delivery process itself: terms such as *ainda* ("still"), *dia* ("day"), *agora* ("now"), and *entregue* ("delivered") suggest customers actively tracking an overdue shipment and expressing impatience about its status. Topic 2 shifts toward the logistics chain and post-purchase evaluation, with *prazo* ("deadline"), *correios* ("postal service"), and *loja* ("store") indicating that customers attribute blame to both the carrier and the seller. The presence of *recomendo* ("I recommend") in Topic 2 is notable, it likely appears in negated form (*não recomendo*, "I do not recommend"), reflecting the reputational damage that late deliveries inflict on sellers. Together, these topics paint a picture of two distinct frustration patterns: one focused on the *experience of waiting* and the other on *assigning accountability* for the delay.
+
+**On-time delivery reviews** tell a different story. Topic 1 is product-focused, with *veio* ("it came"), *comprei* ("I bought"), and *porém* ("however") suggesting customers evaluating the product itself, including occasional caveats. Topic 2 is dominated by satisfaction language: *antes* ("before" / "ahead of schedule"), *qualidade* ("quality"), *bom* ("good"), and *recomendo* ("I recommend") indicate that timely delivery sets the stage for positive product evaluation and endorsement. The term *antes* is particularly informative, it reveals that customers notice and value deliveries that arrive *ahead* of the estimated date, not merely on time.
+
+The contrast between the two groups validates the business case in two ways. First, it confirms that late deliveries trigger qualitatively different review content, not simply lower scores but explicit complaints about logistics failures. Second, it shows that on-time delivery effectively "clears the stage" for product evaluation, meaning that the delivery experience acts as a gatekeeper for overall customer satisfaction. For Olist's account management team, this has a direct implication: seller coaching should emphasise that reliable dispatch is not just an operational metric but a prerequisite for positive customer reviews.
+
+A methodological limitation should be acknowledged. The reviews are in Portuguese, and the topic model operates on raw Portuguese tokens without lemmatisation or stemming. This means that morphological variants (e.g., *entrega* / *entregue* / *entregar*) are treated as separate features, potentially fragmenting topics. A more refined pipeline would apply Portuguese-specific NLP preprocessing, which is deferred to the limitations discussion in Section 7.
+
+# 6. Modeling
 
 Having established that seller segmentation separates delivery risk levels (Section 5), the analysis proceeds to the supervised classification stage. The objective is to predict, at the time of order placement, whether an individual order will be delivered late. Beginning with a single transparent model, inspecting its behaviour, exploring strategies to modify that behaviour (boosting and cost-sensitive learning), introducing an alternative model family (Random Forest), evaluating all models under a shared cross-validation regime, and combining them via hard voting.
 
@@ -1169,8 +1178,8 @@ for (i in seq_len(k)) {
                              num.trees = 500, probability = TRUE)
                              
   pwo_prob <- predict(rf_wo, model_data_no_cluster[test_idx, ])$predictions[, "Late"]
-  pwo <- factor(ifelse(p4_prob > 0.5, "Late", "On_Time"),
-             levels = c("On_Time", "Late"))
+  pwo <- factor(ifelse(pwo_prob > 0.5, "Late", "On_Time"),
+           levels = c("On_Time", "Late"))
   
   acc_without[i] <- mean(pwo == model_data_no_cluster[test_idx, "is_late"])
   auc_without[i] <- as.numeric(pROC::auc(pROC::roc(
@@ -1278,32 +1287,66 @@ This project aims to shift Olist from reactive to proactive delivery management 
 
 ## Recommendations
 
-A
+The analytical pipeline yields recommendations at two levels, aligned with the two-stage design and the two target audiences.
+
+**For Olist's Account Management Team (Strategic — Seller-Level)**
+
+The seller segmentation identifies a clearly separable High_Risk cluster with a late delivery rate of 16.2%, more than three times the platform average. Account managers should prioritise this segment for targeted interventions, including structured performance reviews, logistics coaching, and, where chronic underperformance persists, graduated penalty structures such as reduced visibility in search rankings or mandatory shipping insurance. The Premium_Freight cluster, despite low late rates, exhibits elevated average freight costs; these sellers may benefit from carrier renegotiation support or fulfilment hub partnerships rather than performance penalties. Account managers should also monitor Low_Volume sellers as they scale, since their segment metrics are inherently less stable and may shift as order volume grows.
+
+**For Olist's Customer Service Operations (Tactical — Order-Level)**
+
+The classification models demonstrate that late delivery risk can be estimated at the time of order placement with meaningful discriminative ability (best AUC: 0.692). Customer service should adopt the cost-sensitive C5.0 model for its operational alert pipeline, accepting the higher false positive rate (specificity: 47.3%) in exchange for capturing 71.9% of truly late orders. In practice, this means that for flagged orders, customer service can send preemptive status updates, offer delivery timeline extensions, or prepare expedited shipping alternatives before the customer experiences frustration. For orders that are not flagged, the standard reactive workflow remains appropriate. The precise threshold for triggering proactive contact should be calibrated in collaboration with Olist's operations team, reflecting the available contact capacity and the marginal cost of each outreach.
 
 ## Limitations
 
-A
+Several limitations qualify the conclusions drawn above.
+
+First, **model performance remains modest in absolute terms**. The best-performing model (Random Forest) achieves an AUC of 0.692 — substantially above random (0.5) but far from a reliable individual-order prediction system. Precision for the Late class does not exceed 13.4% in any model, meaning that the majority of flagged orders will arrive on time. This limits the operational efficiency of proactive contact and implies that the system is better suited as a *prioritisation* tool (rank-ordering orders by risk) than as a binary alerting system.
+
+Second, **feature availability at prediction time is constrained**. The model deliberately excludes post-purchase variables (e.g., carrier handoff date, tracking events) to simulate prediction at the point of sale. This design choice ensures operational relevance but removes precisely the variables that carry the strongest predictive signal for delivery outcomes. A production system with access to real-time logistics data would likely outperform the models presented here.
+
+Third, **the ROSE oversampling procedure introduces synthetic training examples** that may not fully represent the structure of the minority class. While ROSE was applied only to training data — preserving the real-world distribution in the test set, the synthetic examples may introduce noise that partly explains the high false positive rates observed across all models.
+
+Fourth, **the text analytics component operates on raw Portuguese tokens** without lemmatisation, stemming, or translation. This limits the granularity of the topic model and means that morphological variants of the same concept are treated as distinct features. A more refined NLP pipeline with Portuguese-specific preprocessing tools (e.g., the `udpipe` package with a Portuguese model) would yield sharper topic separation and more interpretable results.
+
+Fifth, **temporal dynamics are not modelled**. The analysis treats the dataset as a static cross-section, but in practice, seller performance evolves over time. A seller classified as High_Risk in this analysis may have improved (or deteriorated) during the observation period. Incorporating temporal features, such as recent trend in late rate or time since first order — would better capture this evolution.
 
 ## Reflection on Advanced Techniques
 
-A
+This section addresses on how advanced techniques (deep learning, text analytics, and reinforcement learning) could, in principle, be applied to the problem. The focus is on what value they could add, what would be required, and what constraints might limit their usefulness.
 
 ### Deep Learning
 
-A
+Deep learning, excels at learning rich representations from high-dimensional unstructured data such as images. In this project, however, the data is fundamentally tabular: structured features at the order and seller level with well-defined meanings. Deep learning's representational capacity offers limited advantage in this context for several reasons.
+
+First, the dataset contains approximately 110,000 observations with 11 predictors — a regime where tree-based models (C5.0, Random Forest) are well-established as strong performers. Deep learning models typically require substantially larger datasets to realise their representational advantage and are prone to overfitting on smaller tabular datasets. Second, interpretability is a core requirement of this project. The business audiences (account managers and customer service) need to understand *why* an order or seller is flagged, not just the prediction itself. Decision trees and feature importance plots provide this transparency directly; neural networks would require post-hoc explanation methods (e.g., SHAP values) that add complexity without clear benefit. Third, the feature space is already low-dimensional and well-engineered — there are no raw, unprocessed inputs (such as images or text sequences) that would benefit from the hierarchical feature learning that deep learning provides.
+
+One scenario where deep learning could add value is if the problem were reformulated to incorporate unstructured data directly. For example, if product images were available, a convolutional neural network could learn visual features (e.g., product size, packaging quality) that correlate with delivery complexity. Similarly, if raw review text were modelled as a sequence (rather than as a bag of words), recurrent or transformer-based architectures could capture more nuanced patterns. However, both scenarios would require substantial additional data and infrastructure that fall outside the scope of this project.
+
 
 ### Text Analytics
 
-A
+Text analytics was implemented in this project through LDA topic modelling on Portuguese review text, comparing themes in late-delivery versus on-time reviews. This implementation serves a complementary, qualitative role: it validates the business case by showing that late deliveries generate *qualitatively different* customer feedback, not just lower scores.
+
+The current implementation is deliberately basic. Reviews were tokenised and filtered but not lemmatised, stemmed, or translated. More advanced approaches could extend this analysis in several directions. Sentiment analysis using Portuguese-specific lexicons or multilingual transformer models (e.g., multilingual BERT) could quantify the intensity of negative sentiment associated with late deliveries, moving beyond the binary Late/On_Time grouping. Aspect-based sentiment analysis could identify which specific aspects of the delivery experience (e.g., communication, packaging, carrier performance) drive dissatisfaction. Additionally, review text features (e.g., sentiment scores, topic proportions) could be integrated as predictors in the classification models, potentially improving late-delivery prediction by capturing customer-facing signals that structured order data does not.
+
+However, incorporating text features into the prediction pipeline introduces a conceptual complication: review text is generated *after* delivery, meaning it cannot be used for prediction at the point of sale. Text analytics therefore remains most valuable as a diagnostic and strategic tool, helping Olist understand the *consequences* of late delivery — rather than as a predictive input.
 
 ### Reinforcement Learning
 
-A
+Reinforcement learning (RL), addresses problems of sequential decision-making under uncertainty, where an agent learns a policy by interacting with an environment over time. The late-delivery prediction problem, as currently framed, is a static classification task, each order is evaluated independently at a single point in time and therefore does not naturally lend itself to an RL formulation.
+
+However, a meaningful RL application could emerge if the problem were reformulated around Olist's *intervention decisions*. Consider the following scenario: when an order is flagged as high-risk, Olist must decide what action to take, send a preemptive notification, contact the seller, offer expedited shipping, or do nothing. Each action has a cost, and its effectiveness depends on the specific circumstances (seller profile, product type, geographic distance). The outcome of the action (whether the customer leaves a negative review, whether the delivery is ultimately late) provides delayed feedback. This sequential decision problem — repeatedly choosing interventions across thousands of orders and learning which actions are most effective for which risk profiles, maps naturally onto an RL framework.
+
+In such a formulation, the *state* would include order features and the seller's risk profile, the *actions* would be the available interventions, and the *reward* would reflect a combination of customer satisfaction (review scores), operational cost, and delivery outcome. A Q-learning agent could learn which interventions are most cost-effective for different types of orders, adapting its policy over time as the platform accumulates more data. The key challenge would be defining a realistic reward structure that balances competing objectives (e.g., the cost of proactive contact versus the reputational cost of inaction), that RL agents are highly sensitive to reward design choices.
+
+This formulation would require real-time data on intervention outcomes, which Olist does not currently make available in the public dataset and would need careful consideration of exploration-exploitation trade-offs in a setting where poor exploration choices (e.g., choosing not to intervene on a truly late order) have real consequences for customers. Nevertheless, it represents a conceptually sound extension that would move Olist from *predicting* late deliveries to *optimally managing* them.
 
 ## Final Remark
 
+This project demonstrates that a two-stage analytical pipeline, unsupervised seller segmentation followed by supervised order-level classification, provides a coherent framework for shifting Olist's delivery management from reactive to proactive. The seller segmentation identifies structurally distinct performance profiles that are operationally meaningful, and the ablation test confirms that this segmentation adds measurable predictive value to the order-level models. The text analytics component complements the quantitative pipeline by revealing the qualitative consequences of late delivery in customers' own words.
 
-
+The models presented here are not production-ready, their precision is too low for fully automated decision-making, and several data limitations constrain their discriminative power. However, the analytical design is sound: it separates the strategic question (*which sellers are structurally high-risk?*) from the tactical question (*which orders should be flagged?*), enabling different business units to act on insights at the appropriate level. The path to deployment would involve enriching the feature set with real-time logistics data, refining the text analytics pipeline with Portuguese-specific NLP tools, and calibrating decision thresholds in collaboration with Olist's operations team.
 
 # 8. Bibliography
 
