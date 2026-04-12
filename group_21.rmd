@@ -1565,7 +1565,7 @@ The classification models demonstrate that late delivery risk can be estimated a
 
 Several limitations qualify the conclusions drawn above.
 
-First, **model performance remains modest in absolute terms**. The best-performing model (Random Forest) achieves an AUC of 0.692 — substantially above random (0.5) but far from a reliable individual-order prediction system. Precision for the Late class does not exceed 13.4% in any model, meaning that the majority of flagged orders will arrive on time. This limits the operational efficiency of proactive contact and implies that the system is better suited as a *prioritisation* tool (rank-ordering orders by risk) than as a binary alerting system.
+First, **model performance remains modest in absolute terms**. The best-performing model (Random Forest) achieves an AUC of 0.692 which is substantially above random (0.5) but far from a reliable individual-order prediction system. Precision for the Late class does not exceed 13.4% in any model, meaning that the majority of flagged orders will arrive on time. This limits the operational efficiency of proactive contact and implies that the system is better suited as a *prioritisation* tool (rank-ordering orders by risk) than as a binary alerting system.
 
 Second, **feature availability at prediction time is constrained**. The model deliberately excludes post-purchase variables (e.g., carrier handoff date, tracking events) to simulate prediction at the point of sale. This design choice ensures operational relevance but removes precisely the variables that carry the strongest predictive signal for delivery outcomes. A production system with access to real-time logistics data would likely outperform the models presented here.
 
