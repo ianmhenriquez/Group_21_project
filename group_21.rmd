@@ -822,7 +822,7 @@ hist(seller_profiles$order_volume, breaks = 30,
 par(mfrow = c(1, 1))
 ```
 
-As has been the case in majority of the dataset, there is a right skewed distribution which shows sellers achieving relatively low late rates, but with quite poor performer present nontheless. The same may be seen with order volume. These distributions suggest that K-Means will identify clusters driven primarily by the late rate and dispatch speed dimensions, which exhibit the clearest separation between seller types. As has also been done previously in this report, these datapoints are tranformed using a log-transformation, to reduce the impact of low volume outliers. 
+As has been the case in majority of the dataset, there is a right skewed distribution which shows sellers achieving relatively low late rates, but with quite poor performer present nontheless. The same may be seen with order volume. These distributions suggest that K-Means will identify clusters driven primarily by the late rate and dispatch speed dimensions, which exhibit the clearest separation between seller types. As has also been done previously in this report, these datapoint are intentionally left untransformed in order to preserve the orginal scale of the cluster and leave seller perfomance unadjusted for the influence of outliers.
 
 
 
