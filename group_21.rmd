@@ -881,28 +881,13 @@ cat("\nPCA loadings:\n")
 print(round(pca_result$rotation, 3))
 ```
 
-The PCA results show that variance is distributed across all four
-components, with no single component dominating overwhelmingly. The
-correlation matrix confirms that the four features capture largely
-independent dimensions of seller behaviour, as correlations are modest
-and each feature contributes unique information. The full four-feature
-set is therefore retained for clustering rather than reducing to PCA
-scores, as discarding features would result in a loss of meaningful
-signal without substantial gains in parsimony.
+The PCA results show a distributed variance across all four components, where no single component dominates overwhelmingly. The corresponding correlation matrix confirms that the four features capture largely independent dimensions of seller behaviour, as correlations are modest and each feature contributes unique information. Therefore the full four-feature set is  retained for clustering rather than reduced to PCA scores, as discarding features would result in a loss of meaningful signal without substantial gains in parsimony.
 
-This decision aligns with the workbook guidance that dimensionality
-reduction should be applied or deliberately avoided with sound
-justification. In this case, reduction is *not* performed because (a)
-the feature set is already small, (b) features are not redundant, and
-(c) clustering on the original features preserves direct
-interpretability of cluster profiles.
+This decision align with the guidance from the provided workbooks for dimensionality reduction, where it is stated that it should be applied or deliberately avoided with sound justification. In this case, reduction is *not* performed because (a) the feature set is already small, (b) features are not redundant, and (c) clustering on the original features preserves direct interpretability of cluster profiles.
 
 ## K-Means Seller Clustering
 
-Sellers are clustered into performance tiers using K-Means. The optimal
-number of clusters is determined using the elbow method, which evaluates
-how the within-cluster sum of squares decreases as the number of
-clusters (k) increases.
+Sellers are clustered into performance tiers using K-Means. The number of clusters for this have been determined using the elbow method, which evaluates how the within-cluster sum of squares decreases as the number of clusters (k) increases.
 
 ```{r seller-clustering}
 set.seed(42)
@@ -918,11 +903,7 @@ plot(1:10, wss, type = "b", pch = 19,
      main = "Elbow Method for Optimal k")
 ```
 
-The elbow plot shows a clear bend at k = 4, after which additional
-clusters provide diminishing reductions in within-cluster variance. Four
-clusters are therefore selected, balancing granularity (sufficient
-clusters to capture distinct seller types) with parsimony (few enough to
-remain operationally meaningful and explainable to stakeholders).
+The elbow plot shows a clear bend at k = 4, after which additional clusters provide diminishing reductions in within-cluster variance. Four clusters are therefore selected, balancing granularity (sufficient clusters to capture distinct seller types) with parsimony (few enough to remain operationally meaningful and explainable to stakeholders).
 
 ```{r kmeans-fit}
 set.seed(42)
