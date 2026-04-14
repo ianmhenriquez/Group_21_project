@@ -320,12 +320,12 @@ modelling.
 
 Missing values are handled through a structured approach. Orders with
 partial missing information are retained where sufficient data remains
-to describe the delivery process, particularly in cases where fulfillment
-has occurred. This ensures that potentially valuable observations are
-not discarded prematurely. In contrast, records with a substantial
-proportion of missing variables are removed, as they do not provide
-reliable analytically value. The number of such cases is minimal and does
-not materially impact the data set.
+to describe the delivery process, particularly in cases where
+fulfillment has occurred. This ensures that potentially valuable
+observations are not discarded prematurely. In contrast, records with a
+substantial proportion of missing variables are removed, as they do not
+provide reliable analytically value. The number of such cases is minimal
+and does not materially impact the data set.
 
 ```{r missing-values}
 # Summary of missing values
@@ -405,7 +405,18 @@ hist(log1p(orders_enriched$product_weight_g), breaks = 50,
 par(mfrow = c(1, 1))
 ```
 
-All four variables exhibit a skwewness, with a plethora of small data points spanning outwards driven by cheap or expensive orders, light or heavy products, and extensive shipping routes. In order to allow for a more evenly distributed dataset a log transformation is applied, this method has been chosen given data's skewness to the right. The log-transformed distributions (as seen in the right column) are far more symmetrical. The transformation `log1p()`, which mathematically is the natural logarithm of `(1 + x)`, is applied, as it handles zero values without issue and compresses the skewed data properly without losing rank-order information.In practical terms this removes the heavy influence which a small number of expensive, heave, and bulk orders have on the total dataset. 
+All four variables exhibit a skwewness, with a plethora of small data
+points spanning outwards driven by cheap or expensive orders, light or
+heavy products, and extensive shipping routes. In order to allow for a
+more evenly distributed dataset a log transformation is applied, this
+method has been chosen given data's skewness to the right. The
+log-transformed distributions (as seen in the right column) are far more
+symmetrical. The transformation `log1p()`, which mathematically is the
+natural logarithm of `(1 + x)`, is applied, as it handles zero values
+without issue and compresses the skewed data properly without losing
+rank-order information.In practical terms this removes the heavy
+influence which a small number of expensive, heave, and bulk orders have
+on the total dataset.
 
 ```{r skewness-check}
 cat("-- Skewness before transformation --\n")
@@ -417,7 +428,10 @@ cat("  product_weight_g:   ", round(e1071::skewness(orders_enriched$product_weig
 
 ### Distributions of Categorical Variables
 
-With a more evenly distributed dataset now established, some preliminary insight may be given as to where the orders and sellers are distributed across Brazil. A simple visualization of this is made using the chunk below.
+With a more evenly distributed dataset now established, some preliminary
+insight may be given as to where the orders and sellers are distributed
+across Brazil. A simple visualization of this is made using the chunk
+below.
 
 ```{r categorical-distributions, fig.height=5}
 par(mfrow = c(1, 3))
@@ -438,10 +452,16 @@ barplot(head(cat_counts, 15), las = 2, main = "Top 15 Product Categories",
 par(mfrow = c(1, 1))
 ```
 
-What the chunk above shows is that buyer and seller activity are heavily concentrated in São Paulo (SP), accounting for approximately 40% of orders and of sellers. This geographic concentration may speak to larger socioeconomic topics, but for the scope of this report is left for the clustring stage. SP-based sellers may be prone to exhibiting different logistic strategies compared to sellers in more remote area's, where longer
-distances to distribution hubs increase both freight costs and delivery
-times. As for the product categories, these follow a distribution of
-bed_bath_table, and health & beauty dominating by volume.
+What the chunk above shows is that buyer and seller activity are heavily
+concentrated in São Paulo (SP), accounting for approximately 40% of
+orders and of sellers. This geographic concentration may speak to larger
+socioeconomic topics, but for the scope of this report is left for the
+clustring stage. SP-based sellers may be prone to exhibiting different
+logistic strategies compared to sellers in more remote area's, where
+longer distances to distribution hubs increase both freight costs and
+delivery times. As for the product categories, these follow a
+distribution of bed_bath_table, and health & beauty dominating by
+volume.
 
 # 4. Data Transformation
 
@@ -479,23 +499,20 @@ Three geographic features are engineered to capture this relationship at
 increasing levels of granularity:
 
 1.  **`same_state`**: A binary indicator for whether the seller and
-    customer are in the same state. Intra-state shipments typically
-    benefit from shorter carrier routes and local distribution networks.
+    customer are in the same state, as shipments within a state
+    typically benefit from shorter carrier routes and local distribution
+    networks.
 
 2.  **`cross_region`**: A binary indicator for whether the order crosses
     one of Brazil's five macro-regions (Norte, Nordeste, Centro-Oeste,
-    Sudeste, Sul). Cross-region shipments often involve transfers
-    between carrier networks and longer trunk routes, introducing
-    additional delay risk.
+    Sudeste, Sul). As cross-region shipments mainly consist of longer
+    routes, often involves transfers between carrier networks, it
+    introduces additional delay risk.
 
-3.  **`distance_km_log`**: The log-transformed Haversine distance (in
-    km) between the seller's and customer's ZIP code centroids, computed
-    from the `olist_geolocation` table. This provides a continuous
-    measure of spatial separation. The geolocation table contains
-    multiple coordinate records per ZIP prefix (representing different
-    addresses within the same area); the median latitude and longitude
-    per prefix are used to produce a single representative point,
-    resolving the deduplication ambiguity flagged in Section 2.
+3.  **`distance_km_log`**: Serves as the log-transformed distance
+    between the seller's and customer's ZIP code's whic are computed
+    using the `olist_geolocation` table. This provides a continuous
+    measure of spatial separation.
 
 ```{r geographic_features}
 # ============================================================
@@ -712,26 +729,15 @@ These findings have direct implications for Olist's platform:
 
 ## Seller-Level Feature Engineering
 
-The first stage of the analytical pipeline requires building a
-performance profile for each seller. Rather than analysing individual
-orders in isolation, historical order data is aggregated to the seller
-level, capturing each seller's logistics behaviour across past orders.
-These seller-level features serve as input to the K-Means clustering
-model.
+The first stage of the analytical pipeline requires building a performance profile for each seller. For this the historical order data is aggregated to the seller level, this serves to capture each seller's logistical behavior across past orders. These seller-level features will later serve as input to the K-Means clustering model.
 
 Four features are engineered to capture distinct dimensions of seller
 performance:
 
--   **Late rate:** the proportion of a seller's orders that arrived
-    after the estimated delivery date - the primary reliability measure.
--   **Avg dispatch days:** the mean number of days between order
-    purchase and carrier handoff - capturing operational processing
-    speed.
--   **Avg freight cost (log):** the mean log-transformed freight cost -
-    a proxy for logistics complexity and geographic reach.
--   **Order volume:** the total number of fulfilled orders -
-    distinguishing established sellers from low-activity ones whose
-    metrics may be statistically unreliable.
+-   **Late rate:** the proportion of a seller's orders that arrived after the estimated delivery date, the primary reliability measure.
+-   **Avg dispatch days:** which are the mean number of days between order purchase and carrier handoff, capturing the speed of operational processing.
+-   **Avg freight cost (log):** the mean log-transformed freight cost, used as a way to measure seller's logistical complexity and geographic reach.
+-   **Order volume:** the total number of fulfilled orders, distinguishing between established sellers and lower activity ones whose metrics may be influenced by a lack of selling experience or small business size.
 
 ```{r seller-feature-engineering}
 # Build a seller-level performance profile from order-level data
@@ -792,8 +798,7 @@ summary(seller_profiles[, c("late_rate", "avg_dispatch_days",
 
 ## Seller Profile Distributions
 
-The distributions of these seller features reveal important patterns
-before we proceed to clustering:
+The distributions of these seller features may then be plotted in order to reveal insights on how the data is distributed prior to proceeding to clustering.
 
 ```{r seller-distributions, echo=FALSE, fig.height=6, fig.width=10}
 par(mfrow = c(2, 2))
@@ -817,13 +822,9 @@ hist(seller_profiles$order_volume, breaks = 30,
 par(mfrow = c(1, 1))
 ```
 
-The distributions reveal meaningful variation across all four features.
-The late rate distribution is right-skewed, with most sellers achieving
-low late rates but a substantial tail of chronically poor performers.
-Order volume is similarly skewed, with a few very high-volume sellers.
-These distributions suggest that K-Means will identify clusters driven
-primarily by the late rate and dispatch speed dimensions, which exhibit
-the clearest separation between seller types.
+As has been the case in majority of the dataset, there is a right skewed distribution which shows sellers achieving relatively low late rates, but with quite poor performer present nontheless. The same may be seen with order volume. These distributions suggest that K-Means will identify clusters driven primarily by the late rate and dispatch speed dimensions, which exhibit the clearest separation between seller types. As has also been done previously in this report, these datapoints are tranformed using a log-transformation, to reduce the impact of low volume outliers. 
+
+
 
 ## Scaling for Clustering
 
@@ -855,12 +856,10 @@ print(round(apply(seller_scaled, 2, sd), 3))
 
 ## PCA Feasibility Assessment
 
-Before clustering, Principal Component Analysis is used to assess
-whether the feature space can be simplified. With only four features,
-substantial dimensionality reduction is unlikely; however, PCA serves
-two purposes: (1) to reveal how variance is distributed across features,
-and (2) to identify potential redundancy (high correlation), which could
-justify feature exclusion prior to clustering.
+In this section a Principal Component Analysis (PCA) is executed prior to clustering. This is done to asses whether the space between features may be simplified. As there are only four features it is unlikely that there will be a substantial reduction, however the  PCA still serves two purposes:
+- Revealing how variance is distributed across features,
+- Identifying potential redundancy (high correlation), which could
+justify feature exclusion before clustering.
 
 ```{r pca-assessment}
 pca_result <- prcomp(seller_scaled, center = FALSE, scale. = FALSE)
