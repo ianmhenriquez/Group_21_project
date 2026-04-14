@@ -458,16 +458,10 @@ rank-order of observations.
 
 ```{r numerical-transformations}
 # Log transformation for skewed variables
-orders_enriched$price_log               <- log1p(orders_enriched$price)
-orders_enriched$freight_value_log       <- log1p(orders_enriched$freight_value)
+orders_enriched$price_log <- log1p(orders_enriched$price)
+orders_enriched$freight_value_log <- log1p(orders_enriched$freight_value)
 orders_enriched$payment_value_total_log <- log1p(orders_enriched$payment_value_total)
-orders_enriched$product_weight_g_log    <- log1p(orders_enriched$product_weight_g)
-# Check skewness after transformation
-cat("-- Skewness after transformation --\n")
-cat("  price_log:              ", round(e1071::skewness(orders_enriched$price_log, na.rm = TRUE), 2), "\n")
-cat("  freight_value_log:      ", round(e1071::skewness(orders_enriched$freight_value_log, na.rm = TRUE), 2), "\n")
-cat("  payment_value_total_log:", round(e1071::skewness(orders_enriched$payment_value_total_log, na.rm = TRUE), 2), "\n")
-cat("  product_weight_g_log:   ", round(e1071::skewness(orders_enriched$product_weight_g_log, na.rm = TRUE), 2), "\n")
+orders_enriched$product_weight_g_log <- log1p(orders_enriched$product_weight_g)
 ```
 
 ### Geographic Feature Engineering
