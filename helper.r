@@ -27,7 +27,7 @@ install_and_load <- function(){
         options(repos = r)}
     )
     # Install the packages used in this workbook:
-    packages <- c("C50", "ggplot2", "gmodels", "Hmisc", "randomForest", "rsample", "e1071", "tidyr", "factoextra", "caret", "tinytex", "quanteda", "seededlda", "ranger")
+    packages <- c("C50", "ggplot2", "gmodels", "Hmisc", "randomForest", "rsample", "e1071", "tidyr", "factoextra", "caret", "tinytex", "quanteda", "seededlda", "ranger", "geobr", "ggraph")
     for (i in packages) {
         if (!require(i, character.only = TRUE)) {
             install.packages(i, dependencies = TRUE)
@@ -35,5 +35,10 @@ install_and_load <- function(){
                 stop(paste("Package", i, "could not be loaded even after installation."))
             }
         }
+    }
+
+    # Force R Markdown PDF builds to use TinyTeX when available
+    if (requireNamespace("tinytex", quietly = TRUE)) {
+        try(tinytex::use_tinytex(), silent = TRUE)
     }
 }

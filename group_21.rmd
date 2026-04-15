@@ -679,7 +679,86 @@ barplot(dist_late$is_late_numeric * 100,
         xlab = "Distance Decile (1 = closest, 10 = farthest)",
         ylab = "Late Delivery Rate (%)",
         main = "Late Delivery Rate by Seller-Customer Distance",
-        col = "steelblue")
+        col = "steelblue"
+)
+library(ggplot2)
+library(sf)
+library(geobr)
+library(dplyr)
+# 1. Download Brazil state geometries (cached by geobr)
+brazil_states <- read_state(year = 2020, showProgress = FALSE)
+
+# 2. Calculate the centroids (geographic centers) for each state
+# This gives us the X/Y coordinates for the start and end of our flow lines
+state_centroids <- brazil_states %>%
+  mutate(
+    lon = st_coordinates(st_centroid(geom))[,1],
+    lat = st_coordinates(st_centroid(geom))[,2]
+  ) %>%
+  st_drop_geometry() %>%
+  select(abbrev_state, lon, lat)
+
+# 3. PREPARE YOUR FLOW DATA - ACTUAL DATA FROM ANALYSIS
+# Aggregate orders by seller state -> customer state corridor
+route_data <- aggregate(
+  is_late_numeric ~ seller_state + customer_state,
+  data = orders_enriched,
+  FUN = function(x) c(late_rate = mean(x), n = length(x))
+)
+route_data <- do.call(data.frame, route_data)
+colnames(route_data) <- c("origin_state", "dest_state", "late_rate", "order_volume")
+
+# 4. Filter for only the top routes to avoid visually cluttering the map
+# (e.g., only show routes with more than 500 orders)
+top_routes <- route_data %>%
+  filter(order_volume > 500)
+
+# 5. Merge coordinates into the route data
+# First, attach origin coordinates
+flows <- top_routes %>%
+  left_join(state_centroids, by = c("origin_state" = "abbrev_state")) %>%
+  rename(origin_lon = lon, origin_lat = lat)
+
+# Next, attach destination coordinates
+flows <- flows %>%
+  left_join(state_centroids, by = c("dest_state" = "abbrev_state")) %>%
+  rename(dest_lon = lon, dest_lat = lat)
+
+# 6. Plot the Flow Map
+# Split the data into two sets
+inter_state_flows <- flows %>% filter(origin_state != dest_state)
+intra_state_flows <- flows %>% filter(origin_state == dest_state)
+
+# Plot the Flow Map with both layers
+flow_map <- ggplot() +
+  # 1. Base map
+  geom_sf(data = brazil_states, fill = "#f4f4f4", color = "#cccccc", size = 0.2) +
+  
+  # 2. Add curves for INTER-state routes
+  geom_curve(data = inter_state_flows, 
+             aes(x = origin_lon, y = origin_lat, 
+                 xend = dest_lon, yend = dest_lat,
+                 size = order_volume, 
+                 color = late_rate),
+             curvature = 0.2, alpha = 0.8) +
+             
+  # 3. Add circles for INTRA-state routes (using geom_point instead of curve)
+  geom_point(data = intra_state_flows,
+             aes(x = origin_lon, y = origin_lat,
+                 size = order_volume,
+                 color = late_rate),
+             alpha = 0.8) +
+  
+  scale_size_continuous(range = c(0.5, 3), name = "Order Volume") +
+  scale_color_gradient(low = "#3182bd", high = "#de2d26", name = "Late Rate", 
+                       labels = scales::percent_format(accuracy = 1)) +
+  theme_void() +
+  labs(
+    title = "E-Commerce Order Flows and Delivery Risk",
+    subtitle = "Curves = Interstate routes; Circles = Intrastate volume"
+  )
+
+print(flow_map)
 ```
 
 The geographic analysis reveals a clear relationship between spatial
