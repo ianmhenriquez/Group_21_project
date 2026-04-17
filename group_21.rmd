@@ -182,18 +182,15 @@ relevance to the business problem.
 
 Dataset -\> Included? -\> Rationale
 
-`olist_orders` -\> Yes -\> Analytical spine - delivery timestamps, order
-status `olist_order_items` -\> Yes -\> Links sellers to orders; provides
-price, freight `olist_sellers` -\> Yes -\> Seller geography for Stage 1
-clustering `olist_customers` -\> Yes -\> Customer state as a geographic
-predictor `olist_products` -\> Yes -\> Physical dimensions - predictors
-of delivery complexity `olist_order_payments` -\> Yes -\> Payment value
-and instalment behaviour `product_category_name_translation` -\> Yes -\>
-Maps Portuguese categories to English `olist_order_reviews` -\> Yes -\>
-Outcome of delivery, not a predictor - inclusion would be data leakage.
-Used only for the proof-of-concept above `olist_geolocation` -\> Yes -\>
-Multiple coordinates per zip prefix require ambiguous deduplication;
-flagged for future work
+`olist_orders` -\> Yes -\> Analytical spine - delivery timestamps, orderstatus 
+`olist_order_items` -\> Yes -\> Links sellers to orders; provides price, freight 
+`olist_sellers` -\> Yes -\> Seller geography for Stage 1 clustering 
+`olist_customers` -\> Yes -\> Customer state as a geographic predictor 
+`olist_products` -\> Yes -\> Physical dimensions - predictors of delivery complexity 
+`olist_order_payments` -\> Yes -\> Payment value and instalment behaviour 
+`product_category_name_translation` -\> Yes -\> Maps Portuguese categories to English 
+`olist_order_reviews` -\> No -\> Outcome of delivery, not a predictor - inclusion would be data leakage. Used only for the proof-of-concept above 
+`olist_geolocation` -\> Yes -\> Multiple coordinates per zip prefix require ambiguous deduplication; flagged for future work
 
 ## Data dictionary
 
@@ -633,7 +630,7 @@ exploratory step serves two purposes: it validates that the features
 carry predictive signal and it quantifies the magnitude of the
 geographic effect, which informs the business recommendations.
 
-```{r geographic_exploration}
+```{r geographic_exploration, echo=FALSE}
 # --- Late rate by same-state vs. cross-state ---
 orders_enriched$is_late_numeric <- ifelse(
   orders_enriched$is_late == "Late", 1, 0
@@ -703,15 +700,15 @@ barplot(dist_late$is_late_numeric * 100,
         main = "Late Delivery Rate by Seller-Customer Distance",
         col = "steelblue"
 )
+
 library(ggplot2)
 library(sf)
 library(geobr)
 library(dplyr)
-# 1. Download Brazil state geometries (cached by geobr)
+
 brazil_states <- read_state(year = 2020, showProgress = FALSE)
 
-# 2. Calculate the centroids (geographic centers) for each state
-# This gives us the X/Y coordinates for the start and end of our flow lines
+# Calculate the geographic centers for each state
 state_centroids <- brazil_states %>%
   mutate(
     lon = st_coordinates(st_centroid(geom))[,1],
@@ -720,7 +717,6 @@ state_centroids <- brazil_states %>%
   st_drop_geometry() %>%
   select(abbrev_state, lon, lat)
 
-# 3. PREPARE YOUR FLOW DATA - ACTUAL DATA FROM ANALYSIS
 # Aggregate orders by seller state -> customer state corridor
 route_data <- aggregate(
   is_late_numeric ~ seller_state + customer_state,
@@ -730,33 +726,30 @@ route_data <- aggregate(
 route_data <- do.call(data.frame, route_data)
 colnames(route_data) <- c("origin_state", "dest_state", "late_rate", "order_volume")
 
-# 4. Filter for only the top routes to avoid visually cluttering the map
-# (e.g., only show routes with more than 500 orders)
+# only show routes with more than 500 orders to focus on meaningful corridors
 top_routes <- route_data %>%
   filter(order_volume > 500)
 
-# 5. Merge coordinates into the route data
-# First, attach origin coordinates
+# Attach origin coordinates
 flows <- top_routes %>%
   left_join(state_centroids, by = c("origin_state" = "abbrev_state")) %>%
   rename(origin_lon = lon, origin_lat = lat)
 
-# Next, attach destination coordinates
+# Attach destination coordinates
 flows <- flows %>%
   left_join(state_centroids, by = c("dest_state" = "abbrev_state")) %>%
   rename(dest_lon = lon, dest_lat = lat)
 
-# 6. Plot the Flow Map
 # Split the data into two sets
 inter_state_flows <- flows %>% filter(origin_state != dest_state)
 intra_state_flows <- flows %>% filter(origin_state == dest_state)
 
 # Plot the Flow Map with both layers
 flow_map <- ggplot() +
-  # 1. Base map
+  # Base map
   geom_sf(data = brazil_states, fill = "#f4f4f4", color = "#cccccc", size = 0.2) +
   
-  # 2. Add curves for INTER-state routes
+  # INTER-state routes
   geom_curve(data = inter_state_flows, 
              aes(x = origin_lon, y = origin_lat, 
                  xend = dest_lon, yend = dest_lat,
@@ -764,7 +757,7 @@ flow_map <- ggplot() +
                  color = late_rate),
              curvature = 0.2, alpha = 0.8) +
              
-  # 3. Add circles for INTRA-state routes (using geom_point instead of curve)
+  # 3. INTRA-state routes (using geom_point instead of curve)
   geom_point(data = intra_state_flows,
              aes(x = origin_lon, y = origin_lat,
                  size = order_volume,
