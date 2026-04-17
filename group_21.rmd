@@ -149,6 +149,28 @@ barplot(review_impact$Avg_Review,
 text(x = c(0.7, 1.9), y = review_impact$Avg_Review + 0.2,
      labels = review_impact$Avg_Review)
 ```
+Based on this, the relationship between the to variables can be drawn up:
+
+```{r iv-dv-diagram, echo=FALSE, fig.width=6, fig.height=3, fig.cap="Direct relationship: late delivery negatively affects customer satisfaction."}
+
+par(mar = c(2, 2, 2, 2))
+plot(0, 0, type = "n", xlim = c(0, 10), ylim = c(0, 4),
+     xaxt = "n", yaxt = "n", bty = "n",
+     xlab = "", ylab = "")
+
+# IV: Late delivery (left)
+rect(0.2, 1.2, 2.8, 2.8, col = "white", border = "black")
+text(1.5, 2.3, "Late delivery", cex = 0.85, font = 2)
+text(1.5, 1.7, "Independent\nVariable", cex = 0.7)
+
+# DV: Customer satisfaction (right)
+rect(7.2, 1.2, 9.8, 2.8, col = "white", border = "black")
+text(8.5, 2.3, "Customer\nsatisfaction", cex = 0.85, font = 2)
+text(8.5, 1.7, "Dependent\nVariable", cex = 0.7)
+
+# IV -> DV arrow
+arrows(2.85, 2.0, 7.15, 2.0, length = 0.12, lwd = 1.5)
+```
 
 # 2. Data Preparation
 
@@ -1294,7 +1316,40 @@ that the delivery experience acts as a gatekeeper for overall customer
 satisfaction. For Olist's account management team, this has a direct
 implication: seller coaching should emphasise that reliable dispatch is
 not just an operational metric but a prerequisite for positive customer
-reviews.
+reviews. Based on this, the relationship diagram can be set up to display the updated relationship.
+
+```{r moderation-diagram, echo=FALSE, fig.width=6, fig.height=4, fig.cap="Conceptual moderation model: communication quality moderates the effect of late delivery on customer satisfaction."}
+
+# Set up empty plot canvas
+par(mar = c(2, 2, 2, 2))
+plot(0, 0, type = "n", xlim = c(0, 10), ylim = c(0, 6),
+     xaxt = "n", yaxt = "n", bty = "n",
+     xlab = "", ylab = "")
+
+# --- Boxes ---
+# IV: Late delivery (left)
+rect(0.2, 3.2, 2.8, 4.8, col = "white", border = "black")
+text(1.5, 4.3, "Late delivery", cex = 0.85, font = 2)
+text(1.5, 3.7, "Independent\nVariable", cex = 0.7)
+
+# DV: Customer satisfaction (right)
+rect(7.2, 3.2, 9.8, 4.8, col = "white", border = "black")
+text(8.5, 4.3, "Customer\nsatisfaction", cex = 0.85, font = 2)
+text(8.5, 3.7, "Dependent\nVariable", cex = 0.7)
+
+# Moderator: Communication quality (bottom centre)
+rect(3.3, 0.4, 6.7, 1.9, col = "white", border = "black")
+text(5.0, 1.4, "Customer service", cex = 0.75, font = 2)
+text(5.0, 1.05, "communication quality", cex = 0.75, font = 2)
+text(5.0, 0.6, "Moderator Variable", cex = 0.65)
+
+# --- Arrows ---
+# IV -> DV (main effect, horizontal arrow)
+arrows(2.85, 4.0, 7.15, 4.0, length = 0.12, lwd = 1.5)
+
+# Moderator -> path midpoint (upward arrow to middle of main path)
+arrows(5.0, 1.95, 5.0, 3.85, length = 0.12, lwd = 1.5)
+```
 
 A methodological limitation should be acknowledged. The reviews are in
 Portuguese, and the topic model operates on raw Portuguese tokens
@@ -2190,7 +2245,7 @@ the higher false positive rate (specificity: 47.3%) in exchange for
 capturing 71.9% of truly late orders. In practice, this means that for
 flagged orders, customer service can send preemptive status updates,
 offer delivery timeline extensions, or prepare expedited shipping
-alternatives before the customer experiences frustration. For orders
+alternatives before the customer experiences frustration. Thereby anticipating the effects of the moderating variable. For orders
 that are not flagged, the standard reactive workflow remains
 appropriate. The precise threshold for triggering proactive contact
 should be calibrated in collaboration with Olist's operations team,
