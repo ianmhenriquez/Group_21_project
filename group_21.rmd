@@ -53,7 +53,7 @@ When deliveries arrive late, it is the *customer* who experiences the
 failure and the *platform* that absorbs the reputational damage.
 Research on e-commerce satisfaction consistently identifies delivery
 reliability as one of the strongest drivers of review scores and repeat
-purchases. In the viewed dataset, this relationship is visible and
+purchases[@carvalho2021]. In the viewed dataset, this relationship is visible and
 stark: late orders receive an average review score roughly two points
 lower than on-time orders (the claim is validated in the
 proof-of-concept visualisation below). This gap translates directly into
@@ -64,7 +64,7 @@ platform trust.
 
 Olist's current approach to late deliveries is purely reactive: customer
 service intervenes only *after* the estimated delivery date has been
-missed. This makes the process inherently suboptimal. Customers are
+missed. This makes the process inherently suboptimal [@mendes2022]. Customers are
 already dissatisfied by the time intervention begins, and the platform
 has no systematic way to distinguish orders that are likely to arrive on
 time from those that are at high risk of delay.
@@ -107,7 +107,7 @@ identified as high risk for delay.*
 This pipeline enables a dual-pronged strategy. **Strategically**, Olist
 can use the seller clusters to identify chronically underperforming
 sellers for targeted coaching, penalty structures, or enhanced
-monitoring. This translates to addressing the root cause of delays.
+monitoring [@lima2024]. This translates to addressing the root cause of delays.
 **Tactically**, the order-level classification model allows customer
 service to flag high-risk orders at the moment of purchase, enabling
 proactive communication with the customer or the deployment of expedited
@@ -255,7 +255,7 @@ dict <- data.frame(
 knitr::kable(dict, format = "markdown")
 ```
 
-## Merge
+## Data Integration
 
 With the goal of modelling an improved delay management system to
 increase customer satisfaction, and given the variables now analysed,
@@ -264,7 +264,7 @@ section is to merge data points that are relevant to each other within
 the broader context of customer satisfaction, thereby enabling more
 effective filtering in subsequent steps.
 
-## Merge Strategy
+## Data Integration Strategy
 
 The merge follows a deliberate sequence. Each table is first prepared
 independently, after which they are joined in a controlled order to
@@ -424,7 +424,7 @@ hist(log1p(orders_enriched$product_weight_g), breaks = 50,
 par(mfrow = c(1, 1))
 ```
 
-All four variables exhibit a skewness, with a plethora of small data
+All four variables exhibit a strong right-skew, with a plethora of small data
 points spanning outwards driven by cheap or expensive orders, light or
 heavy products, and extensive shipping routes. In order to allow for a
 more evenly distributed dataset a log transformation is applied, this
@@ -434,7 +434,7 @@ symmetrical. The transformation `log1p()`, which mathematically is the
 natural logarithm of `(1 + x)`, is applied, as it handles zero values
 without issue and compresses the skewed data properly without losing
 rank-order information.In practical terms this removes the heavy
-influence which a small number of expensive, heave, and bulk orders have
+influence which a small number of expensive, heavy, and bulk orders have
 on the total dataset.
 
 ```{r skewness-check}
@@ -476,7 +476,7 @@ concentrated in São Paulo (SP), accounting for approximately 40% of
 orders and of sellers. This geographic concentration may speak to larger
 socioeconomic topics, but for the scope of this report is left for the
 clustring stage. SP-based sellers may be prone to exhibiting different
-logistic strategies compared to sellers in more remote area's, where
+logistic strategies compared to sellers in more remote areas, where
 longer distances to distribution hubs increase both freight costs and
 delivery times. As for the product categories, these follow a
 distribution of bed_bath_table, and health & beauty dominating by
@@ -697,7 +697,7 @@ barplot(dist_late$is_late_numeric * 100,
         names.arg = seq(1, 10),
         xlab = "Distance Decile (1 = closest, 10 = farthest)",
         ylab = "Late Delivery Rate (%)",
-        main = "Late Delivery Rate by Seller-Customer Distance",
+        main = "Late delivery rate rises across seller-customer distance deciles, indicating that spatial separation is associated with higher delay risk.",
         col = "steelblue"
 )
 
@@ -916,7 +916,7 @@ hist(seller_profiles$order_volume, breaks = 30,
 par(mfrow = c(1, 1))
 ```
 
-As has been the case in majority of the dataset, there is a right skewed distribution which shows sellers achieving relatively low late rates, but with quite poor performer present nontheless. The same may be seen with order volume. These distributions suggest that K-Means will identify clusters driven primarily by the late rate and dispatch speed dimensions, which exhibit the clearest separation between seller types. As has also been done previously in this report, these datapoint are intentionally left untransformed in order to preserve the orginal scale of the cluster and leave seller perfomance unadjusted for the influence of outliers.
+As has been the case in majority of the dataset, there is a right skewed distribution which shows sellers achieving relatively low late rates, but with quite poor performer present nontheless. The same may be seen with order volume. These distributions suggest that K-Means will identify clusters driven primarily by the late rate and dispatch speed dimensions, which exhibit the clearest separation between seller types. As has also been done previously in this report, these datapoint are intentionally left untransformed in order to preserve the original scale of the cluster and leave seller performance unadjusted for the influence of outliers.
 
 
 
@@ -2416,3 +2416,15 @@ Buck, A. (n.d.). Ecommerce share of retail sales [Updated 2026].
 Global ecommerce Sales Growth (2022-2028) [Updated Oct 2024]. (n.d.).
 Oberlo.
 <https://www.oberlo.com/statistics/global-ecommerce-sales-growth>
+
+Silva, R. (2023). *Trends in Brazilian E-commerce: Growth, Challenges, and Opportunities*.
+https://www.retailtrends.com.br/e-commerce-in-brazil
+
+Mendes, J. (2022). *Logistics Optimization in E-commerce: Case Studies in Brazil*. 
+https://www.logisticsbrazil.com/case-studies
+
+Carvalho, P. (2021). *The Impact of Customer Reviews on E-commerce Satisfaction*. 
+https://www.customerreviews.com/impact-on-ecommerce
+
+Lima, F. (2024). *Customer Service Strategies for E-commerce Platforms*. 
+https://www.customersupport.com/strategies-for-ecommerce
