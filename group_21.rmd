@@ -182,15 +182,15 @@ relevance to the business problem.
 
 Dataset -\> Included? -\> Rationale
 
-`olist_orders` -\> Yes -\> Analytical spine - delivery timestamps, orderstatus 
-`olist_order_items` -\> Yes -\> Links sellers to orders; provides price, freight 
-`olist_sellers` -\> Yes -\> Seller geography for Stage 1 clustering 
-`olist_customers` -\> Yes -\> Customer state as a geographic predictor 
-`olist_products` -\> Yes -\> Physical dimensions - predictors of delivery complexity 
-`olist_order_payments` -\> Yes -\> Payment value and instalment behaviour 
-`product_category_name_translation` -\> Yes -\> Maps Portuguese categories to English 
-`olist_order_reviews` -\> No -\> Outcome of delivery, not a predictor - inclusion would be data leakage. Used only for the proof-of-concept above 
-`olist_geolocation` -\> Yes -\> Multiple coordinates per zip prefix require ambiguous deduplication; flagged for future work
+- `olist_orders` -\> Yes -\> Analytical spine - delivery timestamps, order status
+- `olist_order_items` -\> Yes -\> Links sellers to orders; provides price, freight
+- `olist_sellers` -\> Yes -\> Seller geography for Stage 1 clustering
+- `olist_customers` -\> Yes -\> Customer state as a geographic predictor
+- `olist_products` -\> Yes -\> Physical dimensions - predictors of delivery complexity
+- `olist_order_payments` -\> Yes -\> Payment value and instalment behaviour
+- `product_category_name_translation` -\> Yes -\> Maps Portuguese categories to English
+- `olist_order_reviews` -\> No -\> Outcome of delivery, not a predictor - inclusion would be data leakage. Used only for the proof-of-concept above
+- `olist_geolocation` -\> Yes -\> Multiple coordinates per zip prefix require ambiguous deduplication; flagged for future work
 
 ## Data dictionary
 
