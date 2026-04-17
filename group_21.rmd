@@ -90,7 +90,7 @@ barplot(review_impact$Avg_Review,
 text(x = c(0.7, 1.9), y = review_impact$Avg_Review + 0.2,
      labels = review_impact$Avg_Review)
 ```
-Based on this, the relationship between the to variables can be drawn up:
+Based on this, the relationship between the two variables can be drawn up:
 
 ```{r iv-dv-diagram, echo=FALSE, fig.width=6, fig.height=3, fig.cap="Direct relationship: late delivery negatively affects customer satisfaction."}
 
@@ -335,7 +335,7 @@ barplot(head(cat_counts, 15), las = 2, main = "Top 15 Product Categories",
 par(mfrow = c(1, 1))
 ```
 
-What the chunk above shows is that buyer and seller activity are heavily concentrated in São Paulo (SP), accounting for approximately 40% of orders and of sellers. This geographic concentration may speak to larger socioeconomic topics, but for the scope of this report is left for the clustring stage. SP-based sellers may be prone to exhibiting different logistic strategies compared to sellers in more remote areas, where longer distances to distribution hubs increase both freight costs and delivery times. As for the product categories, these follow a distribution of bed_bath_table, and health & beauty dominating by volume.
+What the chunk above shows is that buyer and seller activity are heavily concentrated in São Paulo (SP), accounting for approximately 40% of orders and of sellers. This geographic concentration may speak to larger socioeconomic topics, but for the scope of this report is left for the clustering stage. SP-based sellers may be prone to exhibiting different logistic strategies compared to sellers in more remote areas, where longer distances to distribution hubs increase both freight costs and delivery times. As for the product categories, these follow a distribution of bed_bath_table, and health & beauty dominating by volume.
 
 # 4. Data Transformation
 
@@ -706,7 +706,7 @@ hist(seller_profiles$order_volume, breaks = 30,
 par(mfrow = c(1, 1))
 ```
 
-As has been the case in majority of the dataset, there is a right skewed distribution which shows sellers achieving relatively low late rates, but with quite poor performer present nontheless. The same may be seen with order volume. These distributions suggest that K-Means will identify clusters driven primarily by the late rate and dispatch speed dimensions, which exhibit the clearest separation between seller types. As has also been done previously in this report, these datapoint are intentionally left untransformed in order to preserve the original scale of the cluster and leave seller performance unadjusted for the influence of outliers.
+As has been the case in majority of the dataset, there is a right skewed distribution which shows sellers achieving relatively low late rates, but with quite poor performer present nonetheless. The same may be seen with order volume. These distributions suggest that K-Means will identify clusters driven primarily by the late rate and dispatch speed dimensions, which exhibit the clearest separation between seller types. As has also been done previously in this report, these datapoints are intentionally left untransformed in order to preserve the original scale of the cluster and leave seller performance unadjusted for the influence of outliers.
 
 ## Scaling for Clustering
 
@@ -732,7 +732,7 @@ print(round(apply(seller_scaled, 2, sd), 3))
 
 ## PCA Feasibility Assessment
 
-In this section a Principal Component Analysis (PCA) is executed prior to clustering. This is done to asses whether the space between features may be simplified. As there are only four features it is unlikely that there will be a substantial reduction, however the  PCA still serves two purposes:
+In this section a Principal Component Analysis (PCA) is executed prior to clustering. This is done to assess whether the space between features may be simplified. As there are only four features it is unlikely that there will be a substantial reduction, however the  PCA still serves two purposes:
 - Revealing how variance is distributed across features,
 - Identifying potential redundancy (high correlation), which could justify feature exclusion before clustering.
 
@@ -758,7 +758,7 @@ print(round(pca_result$rotation, 3))
 
 The PCA results show a distributed variance across all four components, where no single component dominates overwhelmingly. The corresponding correlation matrix confirms that the four features capture largely independent dimensions of seller behaviour, as correlations are modest and each feature contributes unique information. Therefore the full four-feature set is  retained for clustering rather than reduced to PCA scores, as discarding features would result in a loss of meaningful signal without substantial gains in parsimony.
 
-This decision align with the guidance from the provided workbooks for dimensionality reduction, where it is stated that it should be applied or deliberately avoided with sound justification. In this case, reduction is *not* performed because (a) the feature set is already small, (b) features are not redundant, and (c) clustering on the original features preserves direct interpretability of cluster profiles.
+This decision aligns with the guidance from the provided workbooks for dimensionality reduction, where it is stated that it should be applied or deliberately avoided with sound justification. In this case, reduction is *not* performed because (a) the feature set is already small, (b) features are not redundant, and (c) clustering on the original features preserves direct interpretability of cluster profiles.
 
 ## K-Means Seller Clustering
 
@@ -1051,6 +1051,8 @@ arrows(2.85, 4.0, 7.15, 4.0, length = 0.12, lwd = 1.5)
 arrows(5.0, 1.95, 5.0, 3.85, length = 0.12, lwd = 1.5)
 ```
 
+Although the current analysis does not empirically test the moderating effect of customer service communication quality, we introduce this conceptual model as an interpretive framework and a central hypothesis to guide future research and strategic interventions.
+
 A methodological limitation should be acknowledged. The reviews are in Portuguese, and the topic model operates on raw Portuguese tokens without lemmatisation or stemming. This means that morphological variants (e.g., *entrega* / *entregue* / *entregar*) are treated as separate features, potentially fragmenting topics. A more refined pipeline would apply Portuguese-specific NLP preprocessing, which is deferred to the limitations discussion in Section 7.
 
 # 6. Modeling
@@ -1206,13 +1208,13 @@ gmodels::CrossTable(
 
 In Olist's operational context, the two types of classification errors have asymmetric consequences. A **false negative** (predicting On_Time when the order is actually late) represents a missed opportunity for proactive intervention, leading to unnotified customers, increased support costs, and a high likelihood of negative reviews. A **false positive** (predicting Late when the order arrives on time) results in unnecessary proactive contact, which incurs operational effort but does not cause reputational damage.
 
-This asymmetry is formalised using a cost matrix, where a cost of 2 is assigned to false negatives and a cost of 1 to false positives, reflecting the judgment that missing a late delivery is twice as costly as a false alarm.
+This asymmetry is formalised using a cost matrix, where a cost of 1.5 is assigned to false negatives and a cost of 1 to false positives, reflecting the judgment that missing a late delivery is twice as costly as a false alarm.
 
 ```{r c50-cost-sensitive}
 # Cost matrix: C5.0 expects rows = predicted, columns = actual
 cost_matrix <- matrix(
   c(NA, 1,    # predicting Late  when actual On_Time -> FP cost = 1
-    1.5,  NA),  # predicting On_Time when actual Late  -> FN cost = 2
+    1.5,  NA),  # predicting On_Time when actual Late  -> FN cost = 1.5
   nrow = 2, ncol = 2, byrow = FALSE
 )
 rownames(cost_matrix) <- colnames(cost_matrix) <- c("On_Time", "Late")
@@ -1696,9 +1698,9 @@ This section addresses on how advanced techniques (deep learning, text analytics
 
 ### Deep Learning
 
-Deep learning, excels at learning rich representations from high-dimensional unstructured data such as images. In this project, however, the data is fundamentally tabular: structured features at the order and seller level with well-defined meanings. Deep learning's representational capacity offers limited advantage in this context for several reasons.
+Deep learning excels at learning rich representations from high-dimensional unstructured data such as images. In this project, however, the data is fundamentally tabular: structured features at the order and seller level with well-defined meanings. Deep learning's representational capacity offers limited advantage in this context for several reasons.
 
-First, the dataset contains approximately 110,000 observations with 11 predictors, a regime where tree-based models (C5.0, Random Forest) are well-established as strong performers. Deep learning models typically require substantially larger datasets to realise their representational advantage and are prone to overfitting on smaller tabular datasets. Second, interpretability is a core requirement of this project. The business audiences (account managers and customer service) need to understand *why* an order or seller is flagged, not just the prediction itself. Decision trees and feature importance plots provide this transparency directly; neural networks would require post-hoc explanation methods (e.g., SHAP values) that add complexity without clear benefit. Third, the feature space is already low-dimensional and well-engineered, there are no raw, unprocessed inputs (such as images or text sequences) that would benefit from the hierarchical feature learning that deep learning provides.
+First, the dataset contains approximately 110,000 observations with 15 predictors, a regime where tree-based models (C5.0, Random Forest) are well-established as strong performers. Deep learning models typically require substantially larger datasets to realise their representational advantage and are prone to overfitting on smaller tabular datasets. Second, interpretability is a core requirement of this project. The business audiences (account managers and customer service) need to understand *why* an order or seller is flagged, not just the prediction itself. Decision trees and feature importance plots provide this transparency directly; neural networks would require post-hoc explanation methods (e.g., SHAP values) that add complexity without clear benefit. Third, the feature space is already low-dimensional and well-engineered, there are no raw, unprocessed inputs (such as images or text sequences) that would benefit from the hierarchical feature learning that deep learning provides.
 
 One scenario where deep learning could add value is if the problem were reformulated to incorporate unstructured data directly. For example, if product images were available, a convolutional neural network could learn visual features (e.g., product size, packaging quality) that correlate with delivery complexity. Similarly, if raw review text were modelled as a sequence (rather than as a bag of words), recurrent or transformer-based architectures could capture more nuanced patterns. However, both scenarios would require substantial additional data and infrastructure that fall outside the scope of this project.
 
@@ -1712,7 +1714,7 @@ However, incorporating text features into the prediction pipeline introduces a c
 
 ### Reinforcement Learning
 
-Reinforcement learning (RL), addresses problems of sequential decision-making under uncertainty, where an agent learns a policy by interacting with an environment over time. The late-delivery prediction problem, as currently framed, is a static classification task, each order is evaluated independently at a single point in time and therefore does not naturally lend itself to an RL formulation.
+Reinforcement learning (RL) addresses problems of sequential decision-making under uncertainty, where an agent learns a policy by interacting with an environment over time. The late-delivery prediction problem, as currently framed, is a static classification task, each order is evaluated independently at a single point in time and therefore does not naturally lend itself to an RL formulation.
 
 However, a meaningful RL application could emerge if the problem were reformulated around Olist's *intervention decisions*. Consider the following scenario: when an order is flagged as high-risk, Olist must decide what action to take, send a preemptive notification, contact the seller, offer expedited shipping, or do nothing. Each action has a cost, and its effectiveness depends on the specific circumstances (seller profile, product type, geographic distance). The outcome of the action (whether the customer leaves a negative review, whether the delivery is ultimately late) provides delayed feedback. This sequential decision problem - repeatedly choosing interventions across thousands of orders and learning which actions are most effective for which risk profiles, maps naturally onto an RL framework.
 
