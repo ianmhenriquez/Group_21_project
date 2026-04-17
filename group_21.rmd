@@ -1418,10 +1418,10 @@ model_data <- orders_enriched[, c(
   "product_width_cm",
   "customer_state",
   "seller_state",
-  "same_state",                # NEW: geographic relationship features
-  "cross_region",              # NEW
-  "distance_km_log",            # NEW
-  "region_pair"                # NEW: seller-customer region interaction
+  "same_state",                
+  "cross_region",              
+  "distance_km_log",            
+  "region_pair"                
 )]
 
 model_data <- na.omit(model_data)
@@ -1483,7 +1483,6 @@ print(table(train_data$is_late))
 cat("Proportions:", round(prop.table(table(train_data$is_late)), 3), "\n")
 
 # Apply ROSE oversampling to training data only
-# NEVER apply to test data - test set must reflect real-world distribution
 library(ROSE)
 set.seed(42)
 train_balanced <- ROSE::ROSE(is_late ~ ., data = train_data, seed = 42)$data
