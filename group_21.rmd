@@ -39,12 +39,12 @@ late_rate <- round(mean(orders_enriched$is_late == "Late") * 100, 1)
 
 The global e-commerce market continues to grow at a pace that outstrips traditional retail. Brazil is a notable case: with a 15.4% year-on-year growth rate, it ranked among the top five fastest-growing e-commerce markets in 2023 (Oberlo, 2024). Within this rapidly expanding market, Olist operates as a marketplace that connects small and medium-sized sellers to customers across the country. Unlike vertically integrated platforms, Olist does not own inventory or directly control fulfilment. Instead, each seller manages their own warehousing, packaging, and handoff to carriers independently. This decentralised model gives Olist reach, but it also means that delivery performance is fundamentally shaped by the operational behaviour of thousands of individual sellers.
 
-When deliveries arrive late, it is the *customer* who experiences the failure and the *platform* that absorbs the reputational damage. Research on e-commerce satisfaction consistently identifies delivery reliability as one of the strongest drivers of review scores and repeat purchases[@carvalho2021]. In the viewed dataset, this relationship is visible and stark: late orders receive an average review score roughly two points lower than on-time orders (the claim is validated in the proof-of-concept visualisation below). This gap translates directly into higher support costs, lower repeat purchase rates, and erosion of platform trust.
+When deliveries arrive late, it is the *customer* who experiences the failure and the *platform* that absorbs the reputational damage. Research on e-commerce satisfaction consistently identifies delivery reliability as one of the strongest drivers of review scores and repeat purchases. In the viewed dataset, this relationship is visible and stark: late orders receive an average review score roughly two points lower than on-time orders (the claim is validated in the proof-of-concept visualisation below). This gap translates directly into higher support costs, lower repeat purchase rates, and erosion of platform trust.
 
 ## Problem Statement
 
 Olist's current approach to late deliveries is purely reactive: customer service intervenes only *after* the estimated delivery date has been
-missed. This makes the process inherently suboptimal [@mendes2022]. Customers are already dissatisfied by the time intervention begins, and the platform has no systematic way to distinguish orders that are likely to arrive on time from those that are at high risk of delay.
+missed. This makes the process inherently suboptimal. Customers are already dissatisfied by the time intervention begins, and the platform has no systematic way to distinguish orders that are likely to arrive on time from those that are at high risk of delay.
 
 The root causes of late deliveries are not uniformly distributed across the seller base. Some sellers consistently process and dispatch orders quickly, while others exhibit chronic delays rooted in poor logistics management, remote geography, or limited operational capacity. A purely order-level approach to prediction would miss this structural dimension: it would treat a late order from a consistently unreliable seller as statistically equivalent to a one-off delay from an otherwise high-performing seller. The understanding of *seller-level* patterns is a prerequisite for effective *order-level* forecasting.
 
@@ -58,7 +58,7 @@ A **two-stage analytical pipeline** is employed to separate the structural (sell
 
 ## Business Impact
 
-This pipeline enables a dual-pronged strategy. **Strategically**, Olist can use the seller clusters to identify chronically underperforming sellers for targeted coaching, penalty structures, or enhanced monitoring [@lima2024]. This translates to addressing the root cause of delays. **Tactically**, the order-level classification model allows customer service to flag high-risk orders at the moment of purchase, enabling proactive communication with the customer or the deployment of expedited shipping, which means to address the symptoms before they materialise.
+This pipeline enables a dual-pronged strategy. **Strategically**, Olist can use the seller clusters to identify chronically underperforming sellers for targeted coaching, penalty structures, or enhanced monitoring. This translates to addressing the root cause of delays. **Tactically**, the order-level classification model allows customer service to flag high-risk orders at the moment of purchase, enabling proactive communication with the customer or the deployment of expedited shipping, which means to address the symptoms before they materialise.
 
 The intended audiences are therefore (1) Olist's **account management team**, who would use the seller segmentation to inform seller relationship strategies, and (2) Olist's **customer service operations**, who would use the order-level predictions to prioritise proactive outreach.
 
@@ -1016,7 +1016,7 @@ The models reveal distinct thematic patterns that align with the delivery experi
 
 **On-time delivery reviews** tell a different story. Topic 1 is product-focused, with *veio* ("it came"), *comprei* ("I bought"), and *porém* ("however") suggesting customers evaluating the product itself, including occasional caveats. Topic 2 is dominated by satisfaction language: *antes* ("before" / "ahead of schedule"), *qualidade* ("quality"), *bom* ("good"), and *recomendo* ("I recommend") indicate that timely delivery sets the stage for positive product evaluation and endorsement. The term *antes* is particularly informative, it reveals that customers notice and value deliveries that arrive *ahead* of the estimated date, not merely on time.
 
-The contrast between the two groups validates the business case in two ways. First, it confirms that late deliveries trigger qualitatively different review content, not simply lower scores but explicit complaints about logistics failures. Second, it shows that on-time delivery effectively "clears the stage" for product evaluation, meaning that the delivery experience acts as a gatekeeper for overall customer satisfaction. For Olist's account management team, this has a direct implication: seller coaching should emphasise that reliable dispatch is not just an operational metric but a prerequisite for positive customer reviews. Based on this, the relationship diagram can be set up to display the updated relationship.
+The contrast between the two groups validates the business case in two ways. First, it confirms that late deliveries trigger qualitatively different review content, not simply lower scores but explicit complaints about logistics failures. Second, it shows that on-time delivery effectively "clears the stage" for product evaluation, meaning that the delivery experience acts as a gatekeeper for overall customer satisfaction. For Olist's account management team, this has a direct implication: seller coaching should emphasise that reliable dispatch is not just an operational metric but a prerequisite for positive customer reviews. Based on this, the relationship diagram can be set up to display the updated relationship (see below).
 
 ```{r moderation-diagram, echo=FALSE, fig.width=6, fig.height=4, fig.cap="Conceptual moderation model: communication quality moderates the effect of late delivery on customer satisfaction."}
 
@@ -1051,7 +1051,7 @@ arrows(2.85, 4.0, 7.15, 4.0, length = 0.12, lwd = 1.5)
 arrows(5.0, 1.95, 5.0, 3.85, length = 0.12, lwd = 1.5)
 ```
 
-Although the current analysis does not empirically test the moderating effect of customer service communication quality, we introduce this conceptual model as an interpretive framework and a central hypothesis to guide future research and strategic interventions.
+Although the current analysis does not empirically test the moderating effect of customer service communication quality, we introduce this conceptual model (see below) as an interpretive framework and a central hypothesis to guide future research and strategic interventions.
 
 A methodological limitation should be acknowledged. The reviews are in Portuguese, and the topic model operates on raw Portuguese tokens without lemmatisation or stemming. This means that morphological variants (e.g., *entrega* / *entregue* / *entregar*) are treated as separate features, potentially fragmenting topics. A more refined pipeline would apply Portuguese-specific NLP preprocessing, which is deferred to the limitations discussion in Section 7.
 
@@ -1735,15 +1735,3 @@ Buck, A. (n.d.). Ecommerce share of retail sales [Updated 2026].
 
 Global ecommerce Sales Growth (2022-2028) [Updated Oct 2024]. (n.d.). Oberlo.
 <https://www.oberlo.com/statistics/global-ecommerce-sales-growth>
-
-Silva, R. (2023). *Trends in Brazilian E-commerce: Growth, Challenges, and Opportunities*.
-https://www.retailtrends.com.br/e-commerce-in-brazil
-
-Mendes, J. (2022). *Logistics Optimization in E-commerce: Case Studies in Brazil*. 
-https://www.logisticsbrazil.com/case-studies
-
-Carvalho, P. (2021). *The Impact of Customer Reviews on E-commerce Satisfaction*. 
-https://www.customerreviews.com/impact-on-ecommerce
-
-Lima, F. (2024). *Customer Service Strategies for E-commerce Platforms*. 
-https://www.customersupport.com/strategies-for-ecommerce
