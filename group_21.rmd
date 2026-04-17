@@ -424,7 +424,7 @@ hist(log1p(orders_enriched$product_weight_g), breaks = 50,
 par(mfrow = c(1, 1))
 ```
 
-All four variables exhibit a skwewness, with a plethora of small data
+All four variables exhibit a skewness, with a plethora of small data
 points spanning outwards driven by cheap or expensive orders, light or
 heavy products, and extensive shipping routes. In order to allow for a
 more evenly distributed dataset a log transformation is applied, this
@@ -529,7 +529,7 @@ increasing levels of granularity:
     introduces additional delay risk.
 
 3.  **`distance_km_log`**: Serves as the log-transformed distance
-    between the seller's and customer's ZIP code's whic are computed
+    between the seller's and customer's ZIP code's which are computed
     using the `olist_geolocation` table. This provides a continuous
     measure of spatial separation.
 
@@ -1038,9 +1038,6 @@ and may change across runs, even with the same seed, if the data
 changes.
 
 ```{r cluster-labels}
-# -- IMPORTANT: Inspect cluster_means output above and verify these --
-# -- mappings match the actual cluster profiles before proceeding.   --
-# The labels below are based on expected patterns; adjust as needed.
 
 seller_profiles_clean$cluster_label <- dplyr::case_when(
   seller_profiles_clean$cluster == 1 ~ "Premium_Freight",
@@ -1378,15 +1375,6 @@ splits. Their key strengths in this context are interpretability (the
 tree structure reveals *which* features drive late delivery risk) and
 native handling of categorical predictors (seller segment, customer
 state), while their main limitation is instability, as small changes in
-the training data can produce substantially different trees. **C5.0
-Decision Trees** are selected as the primary modelling family because
-they produce transparent, rule-based classifications that can be
-directly inspected and communicated to Olist's operations team. Decision
-trees recursively partition the feature space using locally optimal
-splits. Their key strengths in this context are interpretability (the
-tree structure reveals *which* features drive late delivery risk) and
-native handling of categorical predictors (seller segment, customer
-state), while their main limitation is instability, as small changes in
 the training data can produce substantially different trees.
 
 **Random Forests** are selected as the second modelling family because
@@ -1404,14 +1392,7 @@ networks would introduce additional complexity without a clear
 representational advantage, and the resulting loss of interpretability
 would directly undermine the business objective of explaining risk
 factors to Olist's account managers. This modelling choice is further
-reflected upon in the Conclusion. Deep learning is deliberately **not**
-implemented for this task, as the dataset is tabular with well-defined
-features rather than high-dimensional unstructured data (e.g., images or
-text). Neural networks would introduce additional complexity without a
-clear representational advantage, and the resulting loss of
-interpretability would directly undermine the business objective of
-explaining risk factors to Olist's account managers. This modelling
-choice is further reflected upon in the Conclusion.
+reflected upon in the Conclusion.
 
 ## Preparing the Modelling Dataset
 
