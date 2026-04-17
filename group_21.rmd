@@ -1234,6 +1234,7 @@ differentiates the two groups. Late-delivery reviews are expected to
 feature terms related to waiting, delays, and communication failures,
 while on-time reviews are expected to emphasise product quality and
 overall satisfaction.
+Looking at the charts, we see exactly this: late deliveries are dominated by words like 'recebi' (received) and 'ainda' (yet), while on-time reviews feature 'prazo' (prompt) and 'chegou' (arrived).
 
 ### Topic Modelling: Late vs. On-Time Reviews
 
@@ -1527,9 +1528,8 @@ gmodels::CrossTable(
 ```
 
 The `summary()` output reveals the tree structure and attribute usage,
-indicating which features the model relies on most. The `cluster_label`
-and freight-related features are expected to appear prominently,
-consistent with the domain understanding that seller behaviour and
+indicating which features the model relies on most. As expected, cluster_label and freight features appear prominently, alongside customer_state.
+This is consistent with the domain understanding that seller behaviour and
 logistics complexity are key drivers of delivery delay.
 
 ## Model 2 - Boosted C5.0 (10 Trials)
@@ -1665,9 +1665,8 @@ barplot(importance_df$importance,
 The variable importance plot reveals which features the Random Forest
 relies on most for distinguishing late from on-time orders. This is
 compared to the attribute usage reported by C5.0 to assess whether both
-model families identify the same key drivers. Agreement between
-structurally different models strengthens confidence in the identified
-risk factors, while disagreement warrants closer inspection.
+model families identify the same key drivers.
+Comparing the two, we see strong agreement: both models rely heavily on cluster_label and freight_value_log, strengthening our confidence in these risk factors.
 
 ## Hyperparameter Tuning: Random Forest
 
