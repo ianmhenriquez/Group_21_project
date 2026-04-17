@@ -37,91 +37,32 @@ late_rate <- round(mean(orders_enriched$is_late == "Late") * 100, 1)
 
 ## Business Context
 
-The global e-commerce market continues to grow at a pace that outstrips
-traditional retail. Brazil is a notable case: with a 15.4% year-on-year
-growth rate, it ranked among the top five fastest-growing e-commerce
-markets in 2023 (Oberlo, 2024). Within this rapidly expanding market,
-Olist operates as a marketplace that connects small and medium-sized
-sellers to customers across the country. Unlike vertically integrated
-platforms, Olist does not own inventory or directly control fulfilment.
-Instead, each seller manages their own warehousing, packaging, and
-handoff to carriers independently. This decentralised model gives Olist
-reach, but it also means that delivery performance is fundamentally
-shaped by the operational behaviour of thousands of individual sellers.
+The global e-commerce market continues to grow at a pace that outstrips traditional retail. Brazil is a notable case: with a 15.4% year-on-year growth rate, it ranked among the top five fastest-growing e-commerce markets in 2023 (Oberlo, 2024). Within this rapidly expanding market, Olist operates as a marketplace that connects small and medium-sized sellers to customers across the country. Unlike vertically integrated platforms, Olist does not own inventory or directly control fulfilment. Instead, each seller manages their own warehousing, packaging, and handoff to carriers independently. This decentralised model gives Olist reach, but it also means that delivery performance is fundamentally shaped by the operational behaviour of thousands of individual sellers.
 
-When deliveries arrive late, it is the *customer* who experiences the
-failure and the *platform* that absorbs the reputational damage.
-Research on e-commerce satisfaction consistently identifies delivery
-reliability as one of the strongest drivers of review scores and repeat
-purchases[@carvalho2021]. In the viewed dataset, this relationship is visible and
-stark: late orders receive an average review score roughly two points
-lower than on-time orders (the claim is validated in the
-proof-of-concept visualisation below). This gap translates directly into
-higher support costs, lower repeat purchase rates, and erosion of
-platform trust.
+When deliveries arrive late, it is the *customer* who experiences the failure and the *platform* that absorbs the reputational damage. Research on e-commerce satisfaction consistently identifies delivery reliability as one of the strongest drivers of review scores and repeat purchases[@carvalho2021]. In the viewed dataset, this relationship is visible and stark: late orders receive an average review score roughly two points lower than on-time orders (the claim is validated in the proof-of-concept visualisation below). This gap translates directly into higher support costs, lower repeat purchase rates, and erosion of platform trust.
 
 ## Problem Statement
 
-Olist's current approach to late deliveries is purely reactive: customer
-service intervenes only *after* the estimated delivery date has been
-missed. This makes the process inherently suboptimal [@mendes2022]. Customers are
-already dissatisfied by the time intervention begins, and the platform
-has no systematic way to distinguish orders that are likely to arrive on
-time from those that are at high risk of delay.
+Olist's current approach to late deliveries is purely reactive: customer service intervenes only *after* the estimated delivery date has been
+missed. This makes the process inherently suboptimal [@mendes2022]. Customers are already dissatisfied by the time intervention begins, and the platform has no systematic way to distinguish orders that are likely to arrive on time from those that are at high risk of delay.
 
-The root causes of late deliveries are not uniformly distributed across
-the seller base. Some sellers consistently process and dispatch orders
-quickly, while others exhibit chronic delays rooted in poor logistics
-management, remote geography, or limited operational capacity. A purely
-order-level approach to prediction would miss this structural dimension:
-it would treat a late order from a consistently unreliable seller as
-statistically equivalent to a one-off delay from an otherwise
-high-performing seller. The understanding of *seller-level* patterns is
-a prerequisite for effective *order-level* forecasting.
+The root causes of late deliveries are not uniformly distributed across the seller base. Some sellers consistently process and dispatch orders quickly, while others exhibit chronic delays rooted in poor logistics management, remote geography, or limited operational capacity. A purely order-level approach to prediction would miss this structural dimension: it would treat a late order from a consistently unreliable seller as statistically equivalent to a one-off delay from an otherwise high-performing seller. The understanding of *seller-level* patterns is a prerequisite for effective *order-level* forecasting.
 
 ## Analytical Approach
 
-A **two-stage analytical pipeline** is employed to separate the
-structural (seller-level) and tactical (order-level) dimensions of the
-problem.:
+A **two-stage analytical pipeline** is employed to separate the structural (seller-level) and tactical (order-level) dimensions of the problem.:
 
-**Stage 1 - Unsupervised Seller Segmentation.** Features are engineered
-to capture each seller's historical logistics performance (e.g., late
-delivery rate, dispatch speed) and pricing behaviour (e.g., average
-freight cost). These features are used in a K-Means clustering model to
-segment sellers into distinct performance tiers. This stage addresses
-the strategic question: *which sellers are structurally high-risk and
-how their operational profiles differ?*
+**Stage 1 - Unsupervised Seller Segmentation.** Features are engineered to capture each seller's historical logistics performance (e.g., late delivery rate, dispatch speed) and pricing behaviour (e.g., average freight cost). These features are used in a K-Means clustering model to segment sellers into distinct performance tiers. This stage addresses the strategic question: *which sellers are structurally high-risk and how their operational profiles differ?*
 
-**Stage 2 - Supervised Order-Level Classification.** Seller segment
-labels are mapped back to individual orders and combined with
-order-level features such as product weight, price, payment method, and
-geographic variables. These inputs serve as predictors in classification
-models, including C5.0 decision trees and Random Forests, to forecast
-the likelihood of late delivery. This stage addresses the tactical
-question of *whether, at the time of purchase, an order can be
-identified as high risk for delay.*
+**Stage 2 - Supervised Order-Level Classification.** Seller segment labels are mapped back to individual orders and combined with order-level features such as product weight, price, payment method, and geographic variables. These inputs serve as predictors in classification models, including C5.0 decision trees and Random Forests, to forecast the likelihood of late delivery. This stage addresses the tactical question of *whether, at the time of purchase, an order can be identified as high risk for delay.*
 
 ## Business Impact
 
-This pipeline enables a dual-pronged strategy. **Strategically**, Olist
-can use the seller clusters to identify chronically underperforming
-sellers for targeted coaching, penalty structures, or enhanced
-monitoring [@lima2024]. This translates to addressing the root cause of delays.
-**Tactically**, the order-level classification model allows customer
-service to flag high-risk orders at the moment of purchase, enabling
-proactive communication with the customer or the deployment of expedited
-shipping, which means to address the symptoms before they materialise.
+This pipeline enables a dual-pronged strategy. **Strategically**, Olist can use the seller clusters to identify chronically underperforming sellers for targeted coaching, penalty structures, or enhanced monitoring [@lima2024]. This translates to addressing the root cause of delays. **Tactically**, the order-level classification model allows customer service to flag high-risk orders at the moment of purchase, enabling proactive communication with the customer or the deployment of expedited shipping, which means to address the symptoms before they materialise.
 
-The intended audiences are therefore (1) Olist's **account management
-team**, who would use the seller segmentation to inform seller
-relationship strategies, and (2) Olist's **customer service
-operations**, who would use the order-level predictions to prioritise
-proactive outreach.
+The intended audiences are therefore (1) Olist's **account management team**, who would use the seller segmentation to inform seller relationship strategies, and (2) Olist's **customer service operations**, who would use the order-level predictions to prioritise proactive outreach.
 
 ```{r proof-of-concept, echo=FALSE}
-
-
 # Quick proof-of-concept: late delivery -> lower reviews
 poc <- merge(orders_raw[, c("order_id",
                              "order_delivered_customer_date",
@@ -176,9 +117,7 @@ arrows(2.85, 2.0, 7.15, 2.0, length = 0.12, lwd = 1.5)
 
 ## Dataset Overview
 
-The Olist dataset comprises nine relational tables linked by shared
-keys. We load all nine and make deliberate inclusion decisions based on
-relevance to the business problem.
+The Olist dataset comprises nine relational tables linked by shared keys. We load all nine and make deliberate inclusion decisions based on relevance to the business problem.
 
 Dataset -\> Included? -\> Rationale
 
@@ -194,8 +133,7 @@ Dataset -\> Included? -\> Rationale
 
 ## Data dictionary
 
-The table below may serve to illustrate a plethora of the variables
-which lie in the database. With their ID's and descriptions outlined.
+The table below may serve to illustrate a plethora of the variables which lie in the database. With their ID's and descriptions outlined.
 
 ```{r data-dictionary, echo=FALSE}
 dict <- data.frame(
@@ -257,44 +195,21 @@ knitr::kable(dict, format = "markdown")
 
 ## Data Integration
 
-With the goal of modelling an improved delay management system to
-increase customer satisfaction, and given the variables now analysed,
-the focus shifts to data preparation. The primary objective in this
-section is to merge data points that are relevant to each other within
-the broader context of customer satisfaction, thereby enabling more
-effective filtering in subsequent steps.
+With the goal of modelling an improved delay management system to increase customer satisfaction, and given the variables now analysed, the focus shifts to data preparation. The primary objective in this section is to merge data points that are relevant to each other within the broader context of customer satisfaction, thereby enabling more effective filtering in subsequent steps.
 
 ## Data Integration Strategy
 
-The merge follows a deliberate sequence. Each table is first prepared
-independently, after which they are joined in a controlled order to
-preserve the correct analytical grain (one row per order-item
-combination).
+The merge follows a deliberate sequence. Each table is first prepared independently, after which they are joined in a controlled order to preserve the correct analytical grain (one row per order-item combination).
 
-**Step 1: Aggregate payments to order level.** The payments table
-contains multiple rows per order when a customer uses several payment
-methods. These are aggregated to one row per order by summing the total
-payment value and taking the maximum instalment count. This prevents row
-inflation when joining to orders.
+**Step 1: Aggregate payments to order level.** The payments table contains multiple rows per order when a customer uses several payment methods. These are aggregated to one row per order by summing the total payment value and taking the maximum instalment count. This prevents row inflation when joining to orders.
 
-**Step 2: Translate product categories.** The translation table is
-joined to the products table, replacing Portuguese category names with
-their English equivalents. Products without a match are labelled
-"Miscellaneous".
+**Step 2: Translate product categories.** The translation table is joined to the products table, replacing Portuguese category names with their English equivalents. Products without a match are labelled "Miscellaneous".
 
-**Step 3: Enrich order items with product and seller information.**
-Translated products and sellers are joined onto the `order_items` table
-via `product_id` and `seller_id`, respectively.
+**Step 3: Enrich order items with product and seller information.** Translated products and sellers are joined onto the `order_items` table via `product_id` and `seller_id`, respectively.
 
-**Step 4: Prepare the orders spine.** Date columns are parsed,
-aggregated payments are joined via `order_id`, and customers are joined
-via `customer_id`. The dataset is filtered to delivered orders only
-(orders without delivery timestamps cannot be labelled), after which the
-target variable is constructed.
+**Step 4: Prepare the orders spine.** Date columns are parsed, aggregated payments are joined via `order_id`, and customers are joined via `customer_id`. The dataset is filtered to delivered orders only (orders without delivery timestamps cannot be labelled), after which the target variable is constructed.
 
-**Step 5: Final join.** The enriched orders spine is joined to the
-enriched `order_items` table via `order_id`, producing the
-analysis-ready dataset.
+**Step 5: Final join.** The enriched orders spine is joined to the enriched `order_items` table via `order_id`, producing the analysis-ready dataset.
 
 ```{r merge-pipeline, eval=FALSE}
 # call merge function to show the full pipeline in one place
@@ -316,35 +231,15 @@ cat("Late rate:", late_rate, "%\n")
 cat("Total labelled orders:", nrow(orders_enriched), "\n")
 ```
 
-The late delivery rate of approximately `r late_rate`% means this is a
-moderately imbalanced classification problem. The majority class
-(on-time) outnumbers the minority class (late) by roughly 9:1. This has
-direct implications for modelling: a naive classifier that always
-predicts "On_Time" would achieve `r round(100 - late_rate, 1)`% accuracy
-while being entirely ineffective for the business objective of
-identifying at-risk orders. This imbalance is addressed explicitly in
-the modelling stage through cost-sensitive learning and resampling.
+The late delivery rate of approximately `r late_rate`% means this is a moderately imbalanced classification problem. The majority class (on-time) outnumbers the minority class (late) by roughly 9:1. This has direct implications for modelling: a naive classifier that always predicts "On_Time" would achieve `r round(100 - late_rate, 1)`% accuracy while being entirely ineffective for the business objective of identifying at-risk orders. This imbalance is addressed explicitly in the modelling stage through cost-sensitive learning and resampling.
 
 # 3. Data Exploration
 
-With an overview of the dataset established, the next step focuses on
-exploring its internal structure. This analysis enables informed
-decisions regarding data cleaning, filtering, and restructuring.
-Specifically, variables are assessed for completeness, consistency, and
-relevance, ensuring that only analytically meaningful data is retained.
-This stage prepares the dataset for subsequent feature engineering and
-modelling.
+With an overview of the dataset established, the next step focuses on exploring its internal structure. This analysis enables informed decisions regarding data cleaning, filtering, and restructuring. Specifically, variables are assessed for completeness, consistency, and relevance, ensuring that only analytically meaningful data is retained. This stage prepares the dataset for subsequent feature engineering and modelling.
 
 ## Missing values
 
-Missing values are handled through a structured approach. Orders with
-partial missing information are retained where sufficient data remains
-to describe the delivery process, particularly in cases where
-fulfillment has occurred. This ensures that potentially valuable
-observations are not discarded prematurely. In contrast, records with a
-substantial proportion of missing variables are removed, as they do not
-provide reliable analytically value. The number of such cases is minimal
-and does not materially impact the data set.
+Missing values are handled through a structured approach. Orders with partial missing information are retained where sufficient data remains to describe the delivery process, particularly in cases where fulfillment has occurred. This ensures that potentially valuable observations are not discarded prematurely. In contrast, records with a substantial proportion of missing variables are removed, as they do not provide reliable analytically value. The number of such cases is minimal and does not materially impact the data set.
 
 ```{r missing-values}
 # Summary of missing values
@@ -359,15 +254,7 @@ missing_summary <- missing_summary[missing_summary$n_missing > 0, ]
 print(missing_summary)
 ```
 
-The most common source of missing values is product physical dimensions
-(`product_weight_g`, `product_length_cm`, `product_height_cm`,
-`product_width_cm`). These correspond to a small number of products for
-which physical attributes were not recorded. Because the missingness
-rate is low and the variables are important predictors of delivery
-complexity, median imputation is applied rather than dropping rows.
-Median imputation is preferred over mean imputation because the
-distributions are right-skewed (as shown below), making the median more
-robust to outlier influence.
+The most common source of missing values is product physical dimensions (`product_weight_g`, `product_length_cm`, `product_height_cm`, `product_width_cm`). These correspond to a small number of products for which physical attributes were not recorded. Because the missingness rate is low and the variables are important predictors of delivery complexity, median imputation is applied rather than dropping rows. Median imputation is preferred over mean imputation because the distributions are right-skewed (as shown below), making the median more robust to outlier influence.
 
 ```{r impute-dimensions}
 dim_cols <- c("product_weight_g", "product_length_cm",
@@ -383,20 +270,11 @@ for (col in dim_cols) {
 
 ## Distributions and Skewness
 
-With the missing variables eliminated a point of attention may be given
-to the distribution and skewness of the data. As it would not be an
-ideal scenario for individuals buying or selling extremely high or low
-cost items to influence the value of products being delivered, or
-alternatively for a singular individual who mass purchases a plethora of
-items to skew the order amount.
+With the missing variables eliminated a point of attention may be given to the distribution and skewness of the data. As it would not be an ideal scenario for individuals buying or selling extremely high or low cost items to influence the value of products being delivered, or alternatively for a singular individual who mass purchases a plethora of items to skew the order amount.
 
 ### Distributions of Numerical Variables
 
-Before deciding on transformations, the raw distributions of key
-numerical predictors are inspected. Heavily right-skewed variables can
-dominate distance-based calculations (K-Means) and influence split
-selection in tree-based models, so identifying skewness at this stage
-informs the log transformations applied in the next section.
+Before deciding on transformations, the raw distributions of key numerical predictors are inspected. Heavily right-skewed variables can dominate distance-based calculations (K-Means) and influence split selection in tree-based models, so identifying skewness at this stage informs the log transformations applied in the next section.
 
 ```{r numerical-distributions, echo=FALSE, fig.height=8, fig.width=10}
 par(mfrow = c(4, 2), mar = c(4, 4, 2, 1))
@@ -424,18 +302,7 @@ hist(log1p(orders_enriched$product_weight_g), breaks = 50,
 par(mfrow = c(1, 1))
 ```
 
-All four variables exhibit a strong right-skew, with a plethora of small data
-points spanning outwards driven by cheap or expensive orders, light or
-heavy products, and extensive shipping routes. In order to allow for a
-more evenly distributed dataset a log transformation is applied, this
-method has been chosen given data's skewness to the right. The
-log-transformed distributions (as seen in the right column) are far more
-symmetrical. The transformation `log1p()`, which mathematically is the
-natural logarithm of `(1 + x)`, is applied, as it handles zero values
-without issue and compresses the skewed data properly without losing
-rank-order information.In practical terms this removes the heavy
-influence which a small number of expensive, heavy, and bulk orders have
-on the total dataset.
+All four variables exhibit a strong right-skew, with a plethora of small data points spanning outwards driven by cheap or expensive orders, light or heavy products, and extensive shipping routes. In order to allow for a more evenly distributed dataset a log transformation is applied, this method has been chosen given data's skewness to the right. The log-transformed distributions (as seen in the right column) are far more symmetrical. The transformation `log1p()`, which mathematically is the natural logarithm of `(1 + x)`, is applied, as it handles zero values without issue and compresses the skewed data properly without losing rank-order information.In practical terms this removes the heavy influence which a small number of expensive, heavy, and bulk orders have on the total dataset.
 
 ```{r skewness-check}
 cat("-- Skewness before transformation --\n")
@@ -447,10 +314,7 @@ cat("  product_weight_g:   ", round(e1071::skewness(orders_enriched$product_weig
 
 ### Distributions of Categorical Variables
 
-With a more evenly distributed dataset now established, some preliminary
-insight may be given as to where the orders and sellers are distributed
-across Brazil. A simple visualization of this is made using the chunk
-below.
+With a more evenly distributed dataset now established, some preliminary insight may be given as to where the orders and sellers are distributed across Brazil. A simple visualization of this is made using the chunk below.
 
 ```{r categorical-distributions, fig.height=5}
 par(mfrow = c(1, 3))
@@ -471,29 +335,13 @@ barplot(head(cat_counts, 15), las = 2, main = "Top 15 Product Categories",
 par(mfrow = c(1, 1))
 ```
 
-What the chunk above shows is that buyer and seller activity are heavily
-concentrated in São Paulo (SP), accounting for approximately 40% of
-orders and of sellers. This geographic concentration may speak to larger
-socioeconomic topics, but for the scope of this report is left for the
-clustring stage. SP-based sellers may be prone to exhibiting different
-logistic strategies compared to sellers in more remote areas, where
-longer distances to distribution hubs increase both freight costs and
-delivery times. As for the product categories, these follow a
-distribution of bed_bath_table, and health & beauty dominating by
-volume.
+What the chunk above shows is that buyer and seller activity are heavily concentrated in São Paulo (SP), accounting for approximately 40% of orders and of sellers. This geographic concentration may speak to larger socioeconomic topics, but for the scope of this report is left for the clustring stage. SP-based sellers may be prone to exhibiting different logistic strategies compared to sellers in more remote areas, where longer distances to distribution hubs increase both freight costs and delivery times. As for the product categories, these follow a distribution of bed_bath_table, and health & beauty dominating by volume.
 
 # 4. Data Transformation
 
 ## Numerical variable transformations
 
-Based on the skewness observed above, `log1p()` is applied to the four
-right-skewed numerical variables. This transformation is appropriate
-because: (1) all values are non-negative, so `log1p()` is defined
-everywhere; (2) the transformed distributions are substantially more
-symmetric, improving the behaviour of distance-based algorithms
-(K-Means) and reducing the dominance of extreme values in tree-based
-model splits; and (3) the transformation is monotonic, preserving the
-rank-order of observations.
+Based on the skewness observed above, `log1p()` is applied to the four right-skewed numerical variables. This transformation is appropriate because: (1) all values are non-negative, so `log1p()` is defined everywhere; (2) the transformed distributions are substantially more symmetric, improving the behaviour of distance-based algorithms (K-Means) and reducing the dominance of extreme values in tree-based model splits; and (3) the transformation is monotonic, preserving the rank-order of observations.
 
 ```{r numerical-transformations}
 # Log transformation for skewed variables
@@ -505,39 +353,18 @@ orders_enriched$product_weight_g_log <- log1p(orders_enriched$product_weight_g)
 
 ### Geographic Feature Engineering
 
-The current feature set includes `customer_state` and `seller_state` as
-categorical predictors, but these encode location independently, the
-model knows *where* each party is, but not the *relationship* between
-them. In a country as large as Brazil, the spatial distance between
-seller and customer is likely a strong driver of delivery time: an order
-shipped from São Paulo to a customer in the same city faces
-fundamentally different logistics than one shipped from Rio Grande do
-Sul to Amazonas.
+The current feature set includes `customer_state` and `seller_state` as categorical predictors, but these encode location independently, the model knows *where* each party is, but not the *relationship* between them. In a country as large as Brazil, the spatial distance between seller and customer is likely a strong driver of delivery time: an order shipped from São Paulo to a customer in the same city faces fundamentally different logistics than one shipped from Rio Grande do Sul to Amazonas.
 
-Three geographic features are engineered to capture this relationship at
-increasing levels of granularity:
+Three geographic features are engineered to capture this relationship at increasing levels of granularity:
 
-1.  **`same_state`**: A binary indicator for whether the seller and
-    customer are in the same state, as shipments within a state
-    typically benefit from shorter carrier routes and local distribution
-    networks.
+1.  **`same_state`**: A binary indicator for whether the seller and customer are in the same state, as shipments within a state typically benefit from shorter carrier routes and local distribution networks.
 
-2.  **`cross_region`**: A binary indicator for whether the order crosses
-    one of Brazil's five macro-regions (Norte, Nordeste, Centro-Oeste,
-    Sudeste, Sul). As cross-region shipments mainly consist of longer
-    routes, often involves transfers between carrier networks, it
-    introduces additional delay risk.
+2.  **`cross_region`**: A binary indicator for whether the order crosses one of Brazil's five macro-regions (Norte, Nordeste, Centro-Oeste, Sudeste, Sul). As cross-region shipments mainly consist of longer routes, often involves transfers between carrier networks, it introduces additional delay risk.
 
-3.  **`distance_km_log`**: Serves as the log-transformed distance
-    between the seller's and customer's ZIP code's which are computed
-    using the `olist_geolocation` table. This provides a continuous
-    measure of spatial separation.
+3.  **`distance_km_log`**: Serves as the log-transformed distance between the seller's and customer's ZIP code's which are computed using the `olist_geolocation` table. This provides a continuous measure of spatial separation.
 
 ```{r geographic_features}
-# ============================================================
 # Geographic Feature Engineering
-# ============================================================
-
 # --- Feature 1: Same-state indicator ---
 orders_enriched$same_state <- ifelse(
   orders_enriched$customer_state == orders_enriched$seller_state, 1, 0
@@ -624,11 +451,7 @@ cat("\nRegion pairs:", nlevels(orders_enriched$region_pair), "unique combination
 
 ## Geographic Impact on Late Delivery
 
-Before incorporating these features into the classification models,
-their relationship with late delivery is examined directly. This
-exploratory step serves two purposes: it validates that the features
-carry predictive signal and it quantifies the magnitude of the
-geographic effect, which informs the business recommendations.
+Before incorporating these features into the classification models, their relationship with late delivery is examined directly. This exploratory step serves two purposes: it validates that the features carry predictive signal and it quantifies the magnitude of the geographic effect, which informs the business recommendations.
 
 ```{r geographic_exploration, echo=FALSE}
 # --- Late rate by same-state vs. cross-state ---
@@ -776,48 +599,17 @@ flow_map <- ggplot() +
 print(flow_map)
 ```
 
-The geographic analysis reveals a clear relationship between spatial
-separation and late delivery risk. Cross-state orders exhibit a late
-rate of 7.8%, nearly double the 4.4% observed for intra-state orders.
-Cross-region orders show a similar pattern (7.5% vs. 6.0%), though the
-effect is less pronounced because the region-level grouping is coarser.
+The geographic analysis reveals a clear relationship between spatial separation and late delivery risk. Cross-state orders exhibit a late rate of 7.8%, nearly double the 4.4% observed for intra-state orders. Cross-region orders show a similar pattern (7.5% vs. 6.0%), though the effect is less pronounced because the region-level grouping is coarser.
 
-The route-level analysis reveals that the effect is not purely a
-function of distance but reflects regional logistics infrastructure.
-Routes delivering *into* the Nordeste consistently exhibit the highest
-late rates: Sudeste → Nordeste (12.8%), Sul → Nordeste (12.5%), and
-Centro-Oeste → Nordeste (11.3%). Notably, even intra-Nordeste shipments
-show elevated delay rates (9.0%), suggesting that carrier infrastructure
-in the Northeast is structurally weaker, not merely disadvantaged by
-distance. By contrast, routes within or into the Sul and Sudeste regions
-achieve the lowest late rates (Sul → Sul: 3.8%, Centro-Oeste → Sudeste:
-3.4%), reflecting the more developed logistics networks in southern
-Brazil.
+The route-level analysis reveals that the effect is not purely a function of distance but reflects regional logistics infrastructure. Routes delivering *into* the Nordeste consistently exhibit the highest late rates: Sudeste → Nordeste (12.8%), Sul → Nordeste (12.5%), and Centro-Oeste → Nordeste (11.3%). Notably, even intra-Nordeste shipments show elevated delay rates (9.0%), suggesting that carrier infrastructure in the Northeast is structurally weaker, not merely disadvantaged by distance. By contrast, routes within or into the Sul and Sudeste regions achieve the lowest late rates (Sul → Sul: 3.8%, Centro-Oeste → Sudeste: 3.4%), reflecting the more developed logistics networks in southern Brazil.
 
-The distance decile plot confirms a broadly monotonic relationship
-between seller-customer distance and late delivery probability, but the
-route-level findings add an important nuance: distance alone is an
-incomplete explanation. Two orders covering similar distances can face
-very different delay risks depending on the *destination* region's
-logistics capacity. This asymmetry has direct implications for Olist's
-platform: delivery estimates and proactive interventions should account
-for destination region, not just distance.
+The distance decile plot confirms a broadly monotonic relationship between seller-customer distance and late delivery probability, but the route-level findings add an important nuance: distance alone is an incomplete explanation. Two orders covering similar distances can face very different delay risks depending on the *destination* region's logistics capacity. This asymmetry has direct implications for Olist's platform: delivery estimates and proactive interventions should account for destination region, not just distance.
 
 These findings have direct implications for Olist's platform:
 
--   **Customer-facing delivery estimates** could incorporate the
-    seller-customer distance or region pair to set more accurate
-    expectations at checkout, reducing the gap between promised and
-    actual delivery dates that drives dissatisfaction.
--   **Seller recommendations**: When a customer searches for a product,
-    the platform could prioritise sellers in the same region or state,
-    where delivery reliability is structurally higher. This is not about
-    hiding remote sellers but about transparently communicating delivery
-    trade-offs.
--   **Carrier selection**: For high-risk corridors (e.g., cross-region
-    routes with consistently elevated late rates), Olist could negotiate
-    dedicated carrier partnerships or require expedited shipping
-    options.
+-   **Customer-facing delivery estimates** could incorporate the seller-customer distance or region pair to set more accurate expectations at checkout, reducing the gap between promised and actual delivery dates that drives dissatisfaction.
+-   **Seller recommendations**: When a customer searches for a product, the platform could prioritise sellers in the same region or state, where delivery reliability is structurally higher. This is not about hiding remote sellers but about transparently communicating delivery trade-offs.
+-   **Carrier selection**: For high-risk corridors (e.g., cross-region routes with consistently elevated late rates), Olist could negotiate dedicated carrier partnerships or require expedited shipping options.
 
 # 5. Feature Engineering and Dimensionality Reduction
 
@@ -825,8 +617,7 @@ These findings have direct implications for Olist's platform:
 
 The first stage of the analytical pipeline requires building a performance profile for each seller. For this the historical order data is aggregated to the seller level, this serves to capture each seller's logistical behavior across past orders. These seller-level features will later serve as input to the K-Means clustering model.
 
-Four features are engineered to capture distinct dimensions of seller
-performance:
+Four features are engineered to capture distinct dimensions of seller performance:
 
 -   **Late rate:** the proportion of a seller's orders that arrived after the estimated delivery date, the primary reliability measure.
 -   **Avg dispatch days:** which are the mean number of days between order purchase and carrier handoff, capturing the speed of operational processing.
@@ -835,7 +626,6 @@ performance:
 
 ```{r seller-feature-engineering}
 # Build a seller-level performance profile from order-level data
-
 # Binary late indicator (numeric for aggregation)
 orders_enriched$is_late_numeric <- ifelse(
   orders_enriched$is_late == "Late", 1, 0
@@ -918,17 +708,9 @@ par(mfrow = c(1, 1))
 
 As has been the case in majority of the dataset, there is a right skewed distribution which shows sellers achieving relatively low late rates, but with quite poor performer present nontheless. The same may be seen with order volume. These distributions suggest that K-Means will identify clusters driven primarily by the late rate and dispatch speed dimensions, which exhibit the clearest separation between seller types. As has also been done previously in this report, these datapoint are intentionally left untransformed in order to preserve the original scale of the cluster and leave seller performance unadjusted for the influence of outliers.
 
-
-
 ## Scaling for Clustering
 
-K-Means relies on Euclidean distance, which is sensitive to the scale of
-input features. A seller with an average freight cost of R\$50 would
-dominate distance calculations over a late rate expressed as a
-proportion between 0 and 1, due to differences in units rather than
-meaningful importance. All four features are therefore standardised to
-zero mean and unit variance (Z-score standardisation) prior to
-clustering.
+K-Means relies on Euclidean distance, which is sensitive to the scale of input features. A seller with an average freight cost of R\$50 would dominate distance calculations over a late rate expressed as a proportion between 0 and 1, due to differences in units rather than meaningful importance. All four features are therefore standardised to zero mean and unit variance (Z-score standardisation) prior to clustering.
 
 ```{r seller-profile-scaling}
 # Remove NAs before scaling
@@ -952,8 +734,7 @@ print(round(apply(seller_scaled, 2, sd), 3))
 
 In this section a Principal Component Analysis (PCA) is executed prior to clustering. This is done to asses whether the space between features may be simplified. As there are only four features it is unlikely that there will be a substantial reduction, however the  PCA still serves two purposes:
 - Revealing how variance is distributed across features,
-- Identifying potential redundancy (high correlation), which could
-justify feature exclusion before clustering.
+- Identifying potential redundancy (high correlation), which could justify feature exclusion before clustering.
 
 ```{r pca-assessment}
 pca_result <- prcomp(seller_scaled, center = FALSE, scale. = FALSE)
@@ -1031,11 +812,7 @@ factoextra::fviz_cluster(
 )
 ```
 
-Based on the cluster means, interpretable labels are assigned. These
-labels must be inspected and, if necessary, adjusted after examining the
-actual `cluster_means` output, as K-Means cluster numbering is arbitrary
-and may change across runs, even with the same seed, if the data
-changes.
+Based on the cluster means, interpretable labels are assigned. These labels must be inspected and, if necessary, adjusted after examining the actual `cluster_means` output, as K-Means cluster numbering is arbitrary and may change across runs, even with the same seed, if the data changes.
 
 ```{r cluster-labels}
 
@@ -1053,11 +830,7 @@ print(table(seller_profiles_clean$cluster_label))
 
 ## Mapping Seller Segments Back to Orders
 
-The seller cluster labels are joined back to the main orders dataset,
-making each seller's performance tier available as a feature in the
-Stage 2 classification models. This forms the key link between Stage 1
-(unsupervised seller segmentation) and Stage 2 (supervised order-level
-prediction).
+The seller cluster labels are joined back to the main orders dataset, making each seller's performance tier available as a feature in the Stage 2 classification models. This forms the key link between Stage 1 (unsupervised seller segmentation) and Stage 2 (supervised order-level prediction).
 
 ```{r map-clusters-to-orders}
 # Join cluster labels onto orders
@@ -1081,10 +854,7 @@ orders_enriched$cluster_label <- as.factor(orders_enriched$cluster_label)
 
 ## Validating the Segmentation
 
-A critical check before proceeding to classification is whether the
-seller segmentation meaningfully separates late delivery risk. If the
-late rate is similar across all clusters, the segmentation provides no
-predictive value and the two-stage design is not justified.
+A critical check before proceeding to classification is whether the seller segmentation meaningfully separates late delivery risk. If the late rate is similar across all clusters, the segmentation provides no predictive value and the two-stage design is not justified.
 
 ```{r validate-segmentation}
 # Check late rate by cluster - does segmentation separate risk levels?
@@ -1099,37 +869,17 @@ colnames(seg_validation) <- c("Segment", "Late_Rate_Pct", "N_Orders")
 print(seg_validation)
 ```
 
-The validation confirms that the clustering successfully separates
-seller risk levels. The High_Risk segment exhibits a substantially
-higher late delivery rate than the High_Reliability segment. This
-separation indicates that the engineered seller-level features capture
-meaningful variation in delivery performance and that the cluster label
-contributes predictive signal to the order-level classification models.
+The validation confirms that the clustering successfully separates seller risk levels. The High_Risk segment exhibits a substantially higher late delivery rate than the High_Reliability segment. This separation indicates that the engineered seller-level features capture meaningful variation in delivery performance and that the cluster label contributes predictive signal to the order-level classification models.
 
-The ultimate test of whether the seller segment adds predictive value
-beyond order-level features is conducted through an ablation test in the
-modelling stage, where model performance is compared with and without
-the `cluster_label` feature.
+The ultimate test of whether the seller segment adds predictive value beyond order-level features is conducted through an ablation test in the modelling stage, where model performance is compared with and without the `cluster_label` feature.
 
 ## Text Analytics: What Do Late-Delivery Reviews Reveal?
 
-The proof-of-concept in Section 1 showed that late deliveries receive
-substantially lower review scores; however, numerical ratings do not
-reveal *what specifically* frustrates customers about delays. Topic
-modelling is applied to compare themes in late-delivery versus on-time
-reviews. This analysis serves two purposes: it validates the business
-case with qualitative evidence and demonstrates how unstructured data
-can enrich the seller management strategy.
+The proof-of-concept in Section 1 showed that late deliveries receive substantially lower review scores; however, numerical ratings do not reveal *what specifically* frustrates customers about delays. Topic modelling is applied to compare themes in late-delivery versus on-time reviews. This analysis serves two purposes: it validates the business case with qualitative evidence and demonstrates how unstructured data can enrich the seller management strategy.
 
 ### Preparing the Review Text
 
-The Olist reviews are primarily in Portuguese. Since the lexicon-based
-sentiment tools (`sentimentr`) are designed for English, a different
-analytical approach is adopted: rather than computing sentiment scores,
-delivery status (`is_late`) is used as a natural label that separates
-negative context (late delivery) from positive context (on-time
-delivery). Topic modelling is then applied to each group separately, and
-the resulting themes are compared.
+The Olist reviews are primarily in Portuguese. Since the lexicon-based sentiment tools (`sentimentr`) are designed for English, a different analytical approach is adopted: rather than computing sentiment scores, delivery status (`is_late`) is used as a natural label that separates negative context (late delivery) from positive context (on-time delivery). Topic modelling is then applied to each group separately, and the resulting themes are compared.
 
 ```{r text-merge-reviews}
 # Merge reviews with delivery status
@@ -1204,9 +954,7 @@ cat("Features in DFM: ", quanteda::nfeat(dfm_reviews), "\n")
 
 ### Word Frequency Comparison
 
-Before running topic models, the most frequent terms in late-delivery
-and on-time reviews are compared, as this simple analysis often reveals
-the dominant themes in each group.
+Before running topic models, the most frequent terms in late-delivery and on-time reviews are compared, as this simple analysis often reveals the dominant themes in each group.
 
 ```{r text-word-frequency, fig.width=12, fig.height=5}
 # Split DFM by delivery status
@@ -1229,19 +977,12 @@ barplot(top_ontime, las = 2, col = "steelblue",
 par(mfrow = c(1, 1))
 ```
 
-The word frequency comparison provides an initial indication of what
-differentiates the two groups. Late-delivery reviews are expected to
-feature terms related to waiting, delays, and communication failures,
-while on-time reviews are expected to emphasise product quality and
-overall satisfaction.
+The word frequency comparison provides an initial indication of what differentiates the two groups. Late-delivery reviews are expected to feature terms related to waiting, delays, and communication failures, while on-time reviews are expected to emphasise product quality and overall satisfaction.
 Looking at the charts, we see exactly this: late deliveries are dominated by words like 'recebi' (received) and 'ainda' (yet), while on-time reviews feature 'prazo' (prompt) and 'chegou' (arrived).
 
 ### Topic Modelling: Late vs. On-Time Reviews
 
-Separate LDA topic models are applied to late-delivery and on-time
-reviews, revealing the themes that characterise each group by
-identifying clusters of co-occurring terms rather than relying solely on
-individual word frequencies.
+Separate LDA topic models are applied to late-delivery and on-time reviews, revealing the themes that characterise each group by identifying clusters of co-occurring terms rather than relying solely on individual word frequencies.
 
 ```{r text-topic-models}
 set.seed(42)
@@ -1269,45 +1010,13 @@ print(table(seededlda::topics(lda_ontime)))
 
 ### Interpretation
 
-The models reveal distinct thematic patterns that align with the
-delivery experience captured by the `is_late` label.
+The models reveal distinct thematic patterns that align with the delivery experience captured by the `is_late` label.
 
-**Late-delivery reviews** surface two interpretable topics. Topic 1
-centres on frustration with the delivery process itself: terms such as
-*ainda* ("still"), *dia* ("day"), *agora* ("now"), and *entregue*
-("delivered") suggest customers actively tracking an overdue shipment
-and expressing impatience about its status. Topic 2 shifts toward the
-logistics chain and post-purchase evaluation, with *prazo* ("deadline"),
-*correios* ("postal service"), and *loja* ("store") indicating that
-customers attribute blame to both the carrier and the seller. The
-presence of *recomendo* ("I recommend") in Topic 2 is notable, it likely
-appears in negated form (*não recomendo*, "I do not recommend"),
-reflecting the reputational damage that late deliveries inflict on
-sellers. Together, these topics paint a picture of two distinct
-frustration patterns: one focused on the *experience of waiting* and the
-other on *assigning accountability* for the delay.
+**Late-delivery reviews** surface two interpretable topics. Topic 1 centres on frustration with the delivery process itself: terms such as *ainda* ("still"), *dia* ("day"), *agora* ("now"), and *entregue* ("delivered") suggest customers actively tracking an overdue shipment and expressing impatience about its status. Topic 2 shifts toward the logistics chain and post-purchase evaluation, with *prazo* ("deadline"), *correios* ("postal service"), and *loja* ("store") indicating that customers attribute blame to both the carrier and the seller. The presence of *recomendo* ("I recommend") in Topic 2 is notable, it likely appears in negated form (*não recomendo*, "I do not recommend"), reflecting the reputational damage that late deliveries inflict on sellers. Together, these topics paint a picture of two distinct frustration patterns: one focused on the *experience of waiting* and the other on *assigning accountability* for the delay.
 
-**On-time delivery reviews** tell a different story. Topic 1 is
-product-focused, with *veio* ("it came"), *comprei* ("I bought"), and
-*porém* ("however") suggesting customers evaluating the product itself,
-including occasional caveats. Topic 2 is dominated by satisfaction
-language: *antes* ("before" / "ahead of schedule"), *qualidade*
-("quality"), *bom* ("good"), and *recomendo* ("I recommend") indicate
-that timely delivery sets the stage for positive product evaluation and
-endorsement. The term *antes* is particularly informative, it reveals
-that customers notice and value deliveries that arrive *ahead* of the
-estimated date, not merely on time.
+**On-time delivery reviews** tell a different story. Topic 1 is product-focused, with *veio* ("it came"), *comprei* ("I bought"), and *porém* ("however") suggesting customers evaluating the product itself, including occasional caveats. Topic 2 is dominated by satisfaction language: *antes* ("before" / "ahead of schedule"), *qualidade* ("quality"), *bom* ("good"), and *recomendo* ("I recommend") indicate that timely delivery sets the stage for positive product evaluation and endorsement. The term *antes* is particularly informative, it reveals that customers notice and value deliveries that arrive *ahead* of the estimated date, not merely on time.
 
-The contrast between the two groups validates the business case in two
-ways. First, it confirms that late deliveries trigger qualitatively
-different review content, not simply lower scores but explicit
-complaints about logistics failures. Second, it shows that on-time
-delivery effectively "clears the stage" for product evaluation, meaning
-that the delivery experience acts as a gatekeeper for overall customer
-satisfaction. For Olist's account management team, this has a direct
-implication: seller coaching should emphasise that reliable dispatch is
-not just an operational metric but a prerequisite for positive customer
-reviews. Based on this, the relationship diagram can be set up to display the updated relationship.
+The contrast between the two groups validates the business case in two ways. First, it confirms that late deliveries trigger qualitatively different review content, not simply lower scores but explicit complaints about logistics failures. Second, it shows that on-time delivery effectively "clears the stage" for product evaluation, meaning that the delivery experience acts as a gatekeeper for overall customer satisfaction. For Olist's account management team, this has a direct implication: seller coaching should emphasise that reliable dispatch is not just an operational metric but a prerequisite for positive customer reviews. Based on this, the relationship diagram can be set up to display the updated relationship.
 
 ```{r moderation-diagram, echo=FALSE, fig.width=6, fig.height=4, fig.cap="Conceptual moderation model: communication quality moderates the effect of late delivery on customer satisfaction."}
 
@@ -1342,66 +1051,25 @@ arrows(2.85, 4.0, 7.15, 4.0, length = 0.12, lwd = 1.5)
 arrows(5.0, 1.95, 5.0, 3.85, length = 0.12, lwd = 1.5)
 ```
 
-A methodological limitation should be acknowledged. The reviews are in
-Portuguese, and the topic model operates on raw Portuguese tokens
-without lemmatisation or stemming. This means that morphological
-variants (e.g., *entrega* / *entregue* / *entregar*) are treated as
-separate features, potentially fragmenting topics. A more refined
-pipeline would apply Portuguese-specific NLP preprocessing, which is
-deferred to the limitations discussion in Section 7.
+A methodological limitation should be acknowledged. The reviews are in Portuguese, and the topic model operates on raw Portuguese tokens without lemmatisation or stemming. This means that morphological variants (e.g., *entrega* / *entregue* / *entregar*) are treated as separate features, potentially fragmenting topics. A more refined pipeline would apply Portuguese-specific NLP preprocessing, which is deferred to the limitations discussion in Section 7.
 
 # 6. Modeling
 
-Having established that seller segmentation separates delivery risk
-levels (Section 5), the analysis proceeds to the supervised
-classification stage. The objective is to predict, at the time of order
-placement, whether an individual order will be delivered late. Beginning
-with a single transparent model, inspecting its behaviour, exploring
-strategies to modify that behaviour (boosting and cost-sensitive
-learning), introducing an alternative model family (Random Forest),
-evaluating all models under a shared cross-validation regime, and
-combining them via hard voting.
+Having established that seller segmentation separates delivery risk levels (Section 5), the analysis proceeds to the supervised classification stage. The objective is to predict, at the time of order placement, whether an individual order will be delivered late. Beginning with a single transparent model, inspecting its behaviour, exploring strategies to modify that behaviour (boosting and cost-sensitive learning), introducing an alternative model family (Random Forest), evaluating all models under a shared cross-validation regime, and combining them via hard voting.
 
 ## Modelling Assumptions and Approach Selection
 
-The task is framed as a binary classification problem, where each order
-is classified as either `Late` or `On_Time`. Two modelling families are
-selected, each with distinct assumptions and trade-offs:
+The task is framed as a binary classification problem, where each order is classified as either `Late` or `On_Time`. Two modelling families are selected, each with distinct assumptions and trade-offs:
 
-**C5.0 Decision Trees** are selected as the primary modelling family
-because they produce transparent, rule-based classifications that can be
-directly inspected and communicated to Olist's operations team. Decision
-trees recursively partition the feature space using locally optimal
-splits. Their key strengths in this context are interpretability (the
-tree structure reveals *which* features drive late delivery risk) and
-native handling of categorical predictors (seller segment, customer
-state), while their main limitation is instability, as small changes in
-the training data can produce substantially different trees.
+**C5.0 Decision Trees** are selected as the primary modelling family because they produce transparent, rule-based classifications that can be directly inspected and communicated to Olist's operations team. Decision trees recursively partition the feature space using locally optimal splits. Their key strengths in this context are interpretability (the tree structure reveals *which* features drive late delivery risk) and native handling of categorical predictors (seller segment, customer state), while their main limitation is instability, as small changes in the training data can produce substantially different trees.
 
-**Random Forests** are selected as the second modelling family because
-they address the instability limitation of single trees through
-aggregation. A Random Forest builds multiple trees on bootstrap samples
-with randomised feature subsets and combines their predictions via
-majority vote, reducing sensitivity to individual data splits at the
-cost of interpretability, a trade-off that is evaluated explicitly
-below.
+**Random Forests** are selected as the second modelling family because they address the instability limitation of single trees through aggregation. A Random Forest builds multiple trees on bootstrap samples with randomised feature subsets and combines their predictions via majority vote, reducing sensitivity to individual data splits at the cost of interpretability, a trade-off that is evaluated explicitly below.
 
-Deep learning is deliberately **not** implemented for this task, as the
-dataset is tabular with well-defined features rather than
-high-dimensional unstructured data (e.g., images or text). Neural
-networks would introduce additional complexity without a clear
-representational advantage, and the resulting loss of interpretability
-would directly undermine the business objective of explaining risk
-factors to Olist's account managers. This modelling choice is further
-reflected upon in the Conclusion.
+Deep learning is deliberately **not** implemented for this task, as the dataset is tabular with well-defined features rather than high-dimensional unstructured data (e.g., images or text). Neural networks would introduce additional complexity without a clear representational advantage, and the resulting loss of interpretability would directly undermine the business objective of explaining risk factors to Olist's account managers. This modelling choice is further reflected upon in the Conclusion.
 
 ## Preparing the Modelling Dataset
 
-Features for the classification model are selected based on their
-availability at the time of order placement (to avoid temporal leakage)
-and their relevance to delivery performance. The `cluster_label` serves
-as the key strategic feature, while the remaining predictors capture
-order-level characteristics.
+Features for the classification model are selected based on their availability at the time of order placement (to avoid temporal leakage) and their relevance to delivery performance. The `cluster_label` serves as the key strategic feature, while the remaining predictors capture order-level characteristics.
 
 ```{r modeling-data-split}
 # Prepare modeling dataset with engineered features
@@ -1441,10 +1109,7 @@ cat("Late rate:", round(mean(model_data$is_late == "Late") * 100, 1), "%\n")
 
 ## Train-Test Split
 
-The data is split 70/30 into training and test sets. Stratification on
-the target variable is applied to preserve the class distribution in
-both sets, ensuring that the minority class (Late) is adequately
-represented in both training and evaluation.
+The data is split 70/30 into training and test sets. Stratification on the target variable is applied to preserve the class distribution in both sets, ensuring that the minority class (Late) is adequately represented in both training and evaluation.
 
 ```{r train-test-split}
 # Train/test split - 70/30, stratified on is_late
@@ -1461,20 +1126,10 @@ cat("Late rate (test): ", round(mean(test_data$is_late == "Late") * 100, 1), "%\
 
 ## Addressing Class Imbalance
 
-With approximately 90% of orders arriving on time, a naive classifier
-that always predicts "On_Time" would achieve \~90% accuracy while
-providing zero operational value. This class imbalance represents a
-central challenge, which is addressed through two complementary
-strategies:
+With approximately 90% of orders arriving on time, a naive classifier that always predicts "On_Time" would achieve \~90% accuracy while providing zero operational value. This class imbalance represents a central challenge, which is addressed through two complementary strategies:
 
-1.  **Cost-sensitive learning** (applied to C5.0): higher
-    misclassification costs are assigned to missed late deliveries
-    (false negatives).
-2.  **ROSE oversampling** (applied to the training set): a balanced
-    training set is generated using the ROSE algorithm, which creates
-    synthetic examples of the minority class; critically, this is
-    applied only to the training data, while the test set retains the
-    real-world distribution to ensure unbiased evaluation.
+1.  **Cost-sensitive learning** (applied to C5.0): higher misclassification costs are assigned to missed late deliveries (false negatives).
+2.  **ROSE oversampling** (applied to the training set): a balanced training set is generated using the ROSE algorithm, which creates synthetic examples of the minority class; critically, this is applied only to the training data, while the test set retains the real-world distribution to ensure unbiased evaluation.
 
 ```{r class-imbalance}
 # Show the imbalance problem explicitly
@@ -1494,11 +1149,7 @@ cat("Proportions:", round(prop.table(table(train_balanced$is_late)), 3), "\n")
 
 ## Model 1 - Decision Tree
 
-The modelling process begins with a single, unpruned C5.0 decision tree
-trained on the ROSE-balanced data. This serves as a transparent
-baseline, allowing the classification logic to be inspected rule by
-rule. The C5.0 algorithm uses entropy-based splitting and produces
-interpretable tree structures.
+The modelling process begins with a single, unpruned C5.0 decision tree trained on the ROSE-balanced data. This serves as a transparent baseline, allowing the classification logic to be inspected rule by rule. The C5.0 algorithm uses entropy-based splitting and produces interpretable tree structures.
 
 ```{r decision-tree-modeling}
 # Fit a simple decision tree using C5.0
@@ -1526,17 +1177,11 @@ gmodels::CrossTable(
   dnn = c("Actual", "Predicted"))
 ```
 
-The `summary()` output reveals the tree structure and attribute usage,
-indicating which features the model relies on most. As expected, cluster_label and freight features appear prominently, alongside customer_state.
-This is consistent with the domain understanding that seller behaviour and
-logistics complexity are key drivers of delivery delay.
+The `summary()` output reveals the tree structure and attribute usage, indicating which features the model relies on most. As expected, cluster_label and freight features appear prominently, alongside customer_state. This is consistent with the domain understanding that seller behaviour and logistics complexity are key drivers of delivery delay.
 
 ## Model 2 - Boosted C5.0 (10 Trials)
 
-Boosting builds multiple trees sequentially, with each tree focusing on
-cases misclassified by its predecessors. This approach can alter the
-balance of classification errors. A total of 10 trials is used,
-consistent with the workbook default.
+Boosting builds multiple trees sequentially, with each tree focusing on cases misclassified by its predecessors. This approach can alter the balance of classification errors. A total of 10 trials is used, consistent with the workbook default.
 
 ```{r c50-boosted}
 set.seed(42)
@@ -1559,19 +1204,9 @@ gmodels::CrossTable(
 
 ## Model 3 - Cost-Sensitive C5.0
 
-In Olist's operational context, the two types of classification errors
-have asymmetric consequences. A **false negative** (predicting On_Time
-when the order is actually late) represents a missed opportunity for
-proactive intervention, leading to unnotified customers, increased
-support costs, and a high likelihood of negative reviews. A **false
-positive** (predicting Late when the order arrives on time) results in
-unnecessary proactive contact, which incurs operational effort but does
-not cause reputational damage.
+In Olist's operational context, the two types of classification errors have asymmetric consequences. A **false negative** (predicting On_Time when the order is actually late) represents a missed opportunity for proactive intervention, leading to unnotified customers, increased support costs, and a high likelihood of negative reviews. A **false positive** (predicting Late when the order arrives on time) results in unnecessary proactive contact, which incurs operational effort but does not cause reputational damage.
 
-This asymmetry is formalised using a cost matrix, where a cost of 2 is
-assigned to false negatives and a cost of 1 to false positives,
-reflecting the judgment that missing a late delivery is twice as costly
-as a false alarm.
+This asymmetry is formalised using a cost matrix, where a cost of 2 is assigned to false negatives and a cost of 1 to false positives, reflecting the judgment that missing a late delivery is twice as costly as a false alarm.
 
 ```{r c50-cost-sensitive}
 # Cost matrix: C5.0 expects rows = predicted, columns = actual
@@ -1605,23 +1240,11 @@ gmodels::CrossTable(
   dnn = c("Actual", "Predicted"))
 ```
 
-By assigning higher costs to false negatives, the model's behaviour
-shifts toward more aggressive prediction of Late, capturing a greater
-number of truly late orders at the expense of increased false positives.
-The desirability of this trade-off depends on Olist's operational
-capacity: if proactive customer contact is relatively inexpensive
-compared to the reputational cost of missed late deliveries, the
-cost-sensitive model is preferred; if contact capacity is constrained,
-the baseline or boosted model may be more appropriate. This represents a
-managerial decision rather than a purely statistical one.
+By assigning higher costs to false negatives, the model's behaviour shifts toward more aggressive prediction of Late, capturing a greater number of truly late orders at the expense of increased false positives. The desirability of this trade-off depends on Olist's operational capacity: if proactive customer contact is relatively inexpensive compared to the reputational cost of missed late deliveries, the cost-sensitive model is preferred; if contact capacity is constrained, the baseline or boosted model may be more appropriate. This represents a managerial decision rather than a purely statistical one.
 
 ## Model 4 - Random Forest
 
-A Random Forest is introduced as a structurally different model family.
-Random Forests build multiple trees on bootstrap samples with randomised
-feature subsets and aggregate their predictions. The model is trained on
-the ROSE-balanced data, consistent with the C5.0 models, and evaluated
-on the original test set.
+A Random Forest is introduced as a structurally different model family. Random Forests build multiple trees on bootstrap samples with randomised feature subsets and aggregate their predictions. The model is trained on the ROSE-balanced data, consistent with the C5.0 models, and evaluated on the original test set.
 
 ```{r random-forest-modeling}
 set.seed(42)
@@ -1661,19 +1284,12 @@ barplot(importance_df$importance,
         xlab = "Mean Decrease Gini")
 ```
 
-The variable importance plot reveals which features the Random Forest
-relies on most for distinguishing late from on-time orders. This is
-compared to the attribute usage reported by C5.0 to assess whether both
-model families identify the same key drivers.
+The variable importance plot reveals which features the Random Forest relies on most for distinguishing late from on-time orders. This is compared to the attribute usage reported by C5.0 to assess whether both model families identify the same key drivers.
 Comparing the two, we see strong agreement: both models rely heavily on cluster_label and freight_value_log, strengthening our confidence in these risk factors.
 
 ## Hyperparameter Tuning: Random Forest
 
-The Random Forest above uses the `ranger` default for `mtry` (the number
-of features randomly considered at each split), which is
-$\lfloor\sqrt{p}\rfloor = 3$ for 15 predictors. To verify this default
-is appropriate, a grid search over `mtry` values from 2 to 10 is
-conducted, evaluating each configuration on the held-out test set.
+The Random Forest above uses the `ranger` default for `mtry` (the number of features randomly considered at each split), which is $\lfloor\sqrt{p}\rfloor = 3$ for 15 predictors. To verify this default is appropriate, a grid search over `mtry` values from 2 to 10 is conducted, evaluating each configuration on the held-out test set.
 
 ```{r rf-mtry-tuning}
 # mtry grid search results (hardcoded from tuning run to avoid re-fitting)
@@ -1697,27 +1313,11 @@ legend("topright", legend = "Default (mtry=3)",
        lty = 2, col = "steelblue", cex = 0.8)
 ```
 
-The grid search reveals that AUC varies by less than 0.008 across the
-entire range of `mtry` values tested (0.6796 to 0.6867). The highest AUC
-is achieved at `mtry = 2`, marginally outperforming the default
-`mtry = 3` (0.6867 vs. 0.6860). This difference is small enough to be
-within sampling variability, indicating that the Random Forest's
-discriminative ability is robust to this hyperparameter. The default
-value is therefore retained, as the marginal improvement does not
-justify deviating from a well-understood baseline. This stability is
-characteristic of Random Forests on datasets with moderate
-dimensionality and is consistent with the workbook guidance that
-ensemble methods are less sensitive to individual hyperparameter choices
-than single models.
+The grid search reveals that AUC varies by less than 0.008 across the entire range of `mtry` values tested (0.6796 to 0.6867). The highest AUC is achieved at `mtry = 2`, marginally outperforming the default `mtry = 3` (0.6867 vs. 0.6860). This difference is small enough to be within sampling variability, indicating that the Random Forest's discriminative ability is robust to this hyperparameter. The default value is therefore retained, as the marginal improvement does not justify deviating from a well-understood baseline. This stability is characteristic of Random Forests on datasets with moderate dimensionality and is consistent with the workbook guidance that ensemble methods are less sensitive to individual hyperparameter choices than single models.
 
 ## ROC/AUC Comparison
 
-So far, models have been evaluated using confusion matrices at a single
-decision threshold, which obscures how well each model ranks orders by
-their likelihood of being late. The ROC curve and AUC provide a
-threshold-independent assessment of discriminative ability, indicating
-whether the model assigns higher risk scores to orders that actually
-arrive late.
+So far, models have been evaluated using confusion matrices at a single decision threshold, which obscures how well each model ranks orders by their likelihood of being late. The ROC curve and AUC provide a threshold-independent assessment of discriminative ability, indicating whether the model assigns higher risk scores to orders that actually arrive late.
 
 ```{r roc-comparison, fig.width=8, fig.height=6}
 # Build ROC objects for models that produce probabilities
@@ -1746,24 +1346,13 @@ legend("bottomright",
        pch = c(NA, NA, NA, 4), cex = 0.8)
 ```
 
-AUC values provide a threshold-independent measure of ranking quality. A
-model with a higher AUC more effectively distinguishes late from on-time
-orders *in general*, regardless of the chosen decision boundary.
-However, AUC does not determine the optimal threshold; this choice
-depends on Olist's operational capacity and cost tolerance, as discussed
-above.
+AUC values provide a threshold-independent measure of ranking quality. A model with a higher AUC more effectively distinguishes late from on-time orders *in general*, regardless of the chosen decision boundary. However, AUC does not determine the optimal threshold; this choice depends on Olist's operational capacity and cost tolerance, as discussed above.
 
 ## Threshold Optimisation
 
-All models above use the default decision threshold of 0.5: an order is
-predicted as Late if the model assigns a probability above 50%. However,
-with only 6.6% of orders arriving late, this threshold may not align
-with Olist's operational priorities. Lowering the threshold increases
-recall (more late orders are caught) at the expense of precision (more
-false alarms), while raising it does the opposite.
+All models above use the default decision threshold of 0.5: an order is predicted as Late if the model assigns a probability above 50%. However, with only 6.6% of orders arriving late, this threshold may not align with Olist's operational priorities. Lowering the threshold increases recall (more late orders are caught) at the expense of precision (more false alarms), while raising it does the opposite.
 
-The table below shows how the Random Forest's performance varies across
-thresholds, illustrating the trade-off that Olist must navigate.
+The table below shows how the Random Forest's performance varies across thresholds, illustrating the trade-off that Olist must navigate.
 
 ```{r threshold-analysis}
 # Threshold analysis (hardcoded from tuning run)
@@ -1794,32 +1383,15 @@ legend("right", legend = c("Recall (Sensitivity)", "Precision",
        cex = 0.8)
 ```
 
-The Youden-optimal threshold (maximising sensitivity + specificity - 1)
-is 0.412, slightly below the default. However, the optimal threshold
-depends on the use case, not on a single statistical criterion.
+The Youden-optimal threshold (maximising sensitivity + specificity - 1) is 0.412, slightly below the default. However, the optimal threshold depends on the use case, not on a single statistical criterion.
 
-For **Olist's customer service team**, a threshold of 0.35 is
-recommended. At this threshold, the model catches 72% of truly late
-orders (recall = 0.72), compared to only 47% at the default. The cost is
-a lower precision (10.0% vs. 13.4%), meaning more false alarms -- but as
-argued in the cost-sensitivity discussion, proactive contact with a
-customer whose order will arrive on time is a minor operational cost,
-while missing a late delivery generates genuine reputational damage.
+For **Olist's customer service team**, a threshold of 0.35 is recommended. At this threshold, the model catches 72% of truly late orders (recall = 0.72), compared to only 47% at the default. The cost is a lower precision (10.0% vs. 13.4%), meaning more false alarms -- but as argued in the cost-sensitivity discussion, proactive contact with a customer whose order will arrive on time is a minor operational cost, while missing a late delivery generates genuine reputational damage.
 
-For **Olist's account management team**, the default threshold of 0.50
-or a slightly higher threshold of 0.55 is more appropriate. When the
-consequence of a flag is a resource-intensive seller intervention,
-precision matters more. At threshold 0.55, precision rises to 14.7%
-while still identifying 38% of late orders.
+For **Olist's account management team**, the default threshold of 0.50 or a slightly higher threshold of 0.55 is more appropriate. When the consequence of a flag is a resource-intensive seller intervention, precision matters more. At threshold 0.55, precision rises to 14.7% while still identifying 38% of late orders.
 
 ## 5-Fold Cross-Validation
 
-A single train-test split provides one estimate of model performance;
-however, this estimate depends on the specific allocation of cases to
-each set. To assess the **stability** of the results, all four models
-are evaluated using 5-fold cross-validation with identical folds,
-ensuring that observed differences reflect modelling choices rather than
-evaluation artefacts.
+A single train-test split provides one estimate of model performance; however, this estimate depends on the specific allocation of cases to each set. To assess the **stability** of the results, all four models are evaluated using 5-fold cross-validation with identical folds, ensuring that observed differences reflect modelling choices rather than evaluation artefacts.
 
 ```{r cross-validation, fig.width=10, fig.height=6}
 set.seed(42)
@@ -1913,25 +1485,13 @@ cat("\n-- SD of AUC across folds --\n")
 print(round(apply(auc_mat, 2, sd), 4))
 ```
 
-The box plots reveal both the *level* and *stability* of each model's
-performance. Models with similar average accuracy can differ
-substantially in their variability across folds; a model with slightly
-lower mean accuracy but a tighter spread may be preferable in practice
-because it offers more predictable behaviour.
+The box plots reveal both the *level* and *stability* of each model's performance. Models with similar average accuracy can differ substantially in their variability across folds; a model with slightly lower mean accuracy but a tighter spread may be preferable in practice because it offers more predictable behaviour.
 
-The AUC comparison is particularly informative because it is independent
-of the decision threshold and directly measures how well each model
-ranks orders by late-delivery risk. Differences in AUC that persist
-across all five folds are more robust than those observed in a single
-train-test split.
+The AUC comparison is particularly informative because it is independent of the decision threshold and directly measures how well each model ranks orders by late-delivery risk. Differences in AUC that persist across all five folds are more robust than those observed in a single train-test split.
 
 ## Hard-Voting Ensemble
 
-The four models are combined using hard voting (majority rule), where
-each model casts a binary vote and the final prediction is determined by
-the majority. In the case of a 2-2 tie, the prediction defaults to
-"Late", consistent with the cost-sensitivity rationale that missing a
-late delivery is more costly than a false alarm.
+The four models are combined using hard voting (majority rule), where each model casts a binary vote and the final prediction is determined by the majority. In the case of a 2-2 tie, the prediction defaults to "Late", consistent with the cost-sensitivity rationale that missing a late delivery is more costly than a false alarm.
 
 ```{r ensemble, fig.width=10, fig.height=5}
 # Hard voting function: 4 models, majority wins, ties -> "Late"
@@ -1966,21 +1526,11 @@ cat("-- Ensemble SD --\n")
 cat(round(sd(acc_ensemble), 4), "\n")
 ```
 
-Ensembling does not guarantee higher accuracy; its value lies in
-*stability*. If the ensemble exhibits lower variability across folds
-than individual models, it provides more predictable behaviour, which
-may be operationally preferable even if peak accuracy is slightly lower.
-Ensembling redistributes error rather than eliminating it, and whether
-this redistribution is desirable depends on Olist's tolerance for
-different types of mistakes.
+Ensembling does not guarantee higher accuracy; its value lies in *stability*. If the ensemble exhibits lower variability across folds than individual models, it provides more predictable behaviour, which may be operationally preferable even if peak accuracy is slightly lower. Ensembling redistributes error rather than eliminating it, and whether this redistribution is desirable depends on Olist's tolerance for different types of mistakes.
 
 ## Ablation Test: Does Seller Segmentation Add Value?
 
-The two-stage design rests on the claim that seller-level segmentation
-provides predictive signal beyond what is captured by order-level
-features alone. This claim is tested directly by re-running the Random
-Forest (the strongest model) with and without the `cluster_label`
-feature under the same cross-validation folds.
+The two-stage design rests on the claim that seller-level segmentation provides predictive signal beyond what is captured by order-level features alone. This claim is tested directly by re-running the Random Forest (the strongest model) with and without the `cluster_label` feature under the same cross-validation folds.
 
 ```{r ablation-test}
 # Prepare data without cluster_label
@@ -2037,13 +1587,7 @@ boxplot(cbind(With = auc_with, Without = auc_without),
 par(mfrow = c(1, 1))
 ```
 
-If the model with `cluster_label` consistently outperforms the model
-without it across all five folds, this validates the two-stage design,
-indicating that the unsupervised seller segmentation captures
-information about delivery risk that is not redundant with order-level
-features alone. If performance is similar, the segmentation may still
-retain strategic value for seller management, even if it does not
-improve tactical prediction.
+If the model with `cluster_label` consistently outperforms the model without it across all five folds, this validates the two-stage design, indicating that the unsupervised seller segmentation captures information about delivery risk that is not redundant with order-level features alone. If performance is similar, the segmentation may still retain strategic value for seller management, even if it does not improve tactical prediction.
 
 ## Model Comparison Summary
 
@@ -2092,328 +1636,102 @@ for (name in names(models)) {
 
 ## Model Reflection
 
-The results reveal patterns that require careful interpretation rather
-than a simple declaration of a "winning" model. The relevant question is
-not *which model is right?* but *which risks are acceptable, and how
-should disagreement be managed under uncertainty?*
+The results reveal patterns that require careful interpretation rather than a simple declaration of a "winning" model. The relevant question is not *which model is right?* but *which risks are acceptable, and how should disagreement be managed under uncertainty?*
 
-**Accuracy alone is insufficient for imbalanced problems.** The Random
-Forest achieves the highest accuracy (77.8%), but this metric
-systematically rewards conservative behaviour. A model that rarely
-predicts Late can achieve high accuracy by correctly classifying the
-dominant On_Time class while providing limited operational value. A high
-accuracy can coexist with operational blindness, particularly when the
-event of interest is rare.
+**Accuracy alone is insufficient for imbalanced problems.** The Random Forest achieves the highest accuracy (77.8%), but this metric systematically rewards conservative behaviour. A model that rarely predicts Late can achieve high accuracy by correctly classifying the dominant On_Time class while providing limited operational value. A high accuracy can coexist with operational blindness, particularly when the event of interest is rare.
 
-**The precision-recall trade-off reflects a decision problem, not a
-modelling problem.** The four models span a clear spectrum: the
-cost-sensitive C5.0 achieves the highest recall (73.1%), capturing
-nearly three-quarters of truly late orders, but at a precision of only
-8.6%, meaning most "Late" predictions are false positives. In contrast,
-the Random Forest exhibits higher precision (13.7%) but lower recall
-(44.6%), missing more than half of late deliveries. As highlighted in
-Lecture 5, the appropriate position on this spectrum depends on the
-relative costs of acting too frequently versus acting too late.
+**The precision-recall trade-off reflects a decision problem, not a modelling problem.** The four models span a clear spectrum: the cost-sensitive C5.0 achieves the highest recall (73.1%), capturing nearly three-quarters of truly late orders, but at a precision of only 8.6%, meaning most "Late" predictions are false positives. In contrast, the Random Forest exhibits higher precision (13.7%) but lower recall (44.6%), missing more than half of late deliveries. The appropriate position on this spectrum depends on the relative costs of acting too frequently versus acting too late.
 
-**Different stakeholders require different operating points.** This is
-where the two-audience framing becomes decisive:
+**Different stakeholders require different operating points.** This is where the two-audience framing becomes decisive:
 
-For **Olist's customer service team** (tactical, order-level), recall
-should be prioritised. A false positive proactively contacting a
-customer whose order will arrive on time, incurs at most a minor cost
-and may even create a positive experience, while a false negative,
-failing to identify a late delivery, leads to customer dissatisfaction,
-low review scores, and reactive support costs. The *cost-sensitive C5.0*
-model, with a recall of 73.1%, is therefore the recommended model for
-this use case.
+For **Olist's customer service team** (tactical, order-level), recall should be prioritised. A false positive proactively contacting a customer whose order will arrive on time, incurs at most a minor cost and may even create a positive experience, while a false negative, failing to identify a late delivery, leads to customer dissatisfaction, low review scores, and reactive support costs. The *cost-sensitive C5.0* model, with a recall of 73.1%, is therefore the recommended model for this use case.
 
-For **Olist's account management team** (strategic, seller-level),
-precision is more important. Reaching out to a seller about performance
-issues is a resource-intensive intervention that consumes account
-manager time and may harm the relationship if the signal is incorrect.
-In this context, the *Random Forest* or *boosted C5.0* models-being more
-selective in their predictions-are better suited.
+For **Olist's account management team** (strategic, seller-level), precision is more important. Reaching out to a seller about performance issues is a resource-intensive intervention that consumes account manager time and may harm the relationship if the signal is incorrect. In this context, the *Random Forest* or *boosted C5.0* models-being more selective in their predictions-are better suited.
 
-**Stability matters as much as performance level.** The cross-validation
-results show that the Random Forest is the most stable model across
-folds (accuracy SD = 0.005, AUC SD = 0.005), while the cost-sensitive
-C5.0 exhibits the highest variability (accuracy SD = 0.017). For a
-production system requiring predictable behaviour, the Random Forest
-provides the most reliable baseline, whereas the cost-sensitive C5.0
-offers higher recall at the cost of reduced stability across different
-data samples.
+**Stability matters as much as performance level.** The cross-validation results show that the Random Forest is the most stable model across folds (accuracy SD = 0.005, AUC SD = 0.005), while the cost-sensitive C5.0 exhibits the highest variability (accuracy SD = 0.017). For a production system requiring predictable behaviour, the Random Forest provides the most reliable baseline, whereas the cost-sensitive C5.0 offers higher recall at the cost of reduced stability across different data samples.
 
-**Ensembling redistributes error rather than eliminating it.** The
-hard-voting ensemble moderates individual model predictions; ensembling
-should be understood as a mechanism for managing how uncertainty is
-expressed in decisions rather than as a guaranteed performance
-improvement. It may reduce extreme failures, but does so by trading peak
-performance for increased stability.
+**Ensembling redistributes error rather than eliminating it.** The hard-voting ensemble moderates individual model predictions; ensembling should be understood as a mechanism for managing how uncertainty is expressed in decisions rather than as a guaranteed performance improvement. It may reduce extreme failures, but does so by trading peak performance for increased stability.
 
-**The seller segment adds demonstrable value.** The ablation test
-provides strong evidence for the two-stage design: including
-`cluster_label` increases the Random Forest's mean AUC from 0.668 to
-0.692 across all five folds, while also *reducing* variance (SD 0.005 vs
-0.007). This indicates that seller segmentation captures delivery risk
-information that is not redundant with order-level features alone. The
-improvement is consistent rather than driven by a single split, thereby
-validating the core analytical claim of the project.
+**The seller segment adds demonstrable value.** The ablation test provides strong evidence for the two-stage design: including `cluster_label` increases the Random Forest's mean AUC from 0.668 to 0.692 across all five folds, while also *reducing* variance (SD 0.005 vs 0.007). This indicates that seller segmentation captures delivery risk information that is not redundant with order-level features alone. The improvement is consistent rather than driven by a single split, thereby validating the core analytical claim of the project.
 
 # 7. Conclusion and Recommendations
 
 ## Summary of Findings
 
-This project aims to shift Olist from reactive to proactive delivery
-management through a two-stage analytical pipeline, and the results
-validate this approach on both fronts.
+This project aims to shift Olist from reactive to proactive delivery management through a two-stage analytical pipeline, and the results validate this approach on both fronts.
 
-**Stage 1 (Seller Segmentation)** identified four distinct seller
-performance profiles using K-Means clustering on historical logistics
-data. The segmentation effectively separates delivery risk, with the
-High_Risk segment exhibiting a 16.2% late delivery rate-more than three
-times the 5.2% observed among High_Reliability sellers. This separation
-is not an artefact of the clustering algorithm but reflects genuine
-differences in seller dispatch speed, freight cost structure, and
-operational capacity.
+**Stage 1 (Seller Segmentation)** identified four distinct seller performance profiles using K-Means clustering on historical logistics data. The segmentation effectively separates delivery risk, with the High_Risk segment exhibiting a 16.2% late delivery rate-more than three times the 5.2% observed among High_Reliability sellers. This separation is not an artefact of the clustering algorithm but reflects genuine differences in seller dispatch speed, freight cost structure, and operational capacity.
 
-**Stage 2 (Order-Level Classification)** demonstrated that late
-deliveries can be predicted at the time of order placement using a
-combination of seller segment membership, order characteristics, and
-geographic features. The seller segment label (`cluster_label`) emerged
-as the most important predictor, appearing in 100% of splits in the C5.0
-baseline model. The ablation test confirmed this quantitatively, as
-removing the seller segment reduced the Random Forest's mean AUC from
-0.692 to 0.668 across all five cross-validation folds. The two-stage
-design is therefore not merely a structural choice but contributes
-measurable predictive value.
+**Stage 2 (Order-Level Classification)** demonstrated that late deliveries can be predicted at the time of order placement using a combination of seller segment membership, order characteristics, and geographic features. The seller segment label (`cluster_label`) emerged as the most important predictor, appearing in 100% of splits in the C5.0 baseline model. The ablation test confirmed this quantitatively, as removing the seller segment reduced the Random Forest's mean AUC from 0.692 to 0.668 across all five cross-validation folds. The two-stage design is therefore not merely a structural choice but contributes measurable predictive value.
 
 ## Recommendations
 
-The analytical pipeline yields recommendations at two levels, aligned
-with the two-stage design and the two target audiences.
+The analytical pipeline yields recommendations at two levels, aligned with the two-stage design and the two target audiences.
 
 **For Olist's Account Management Team (Strategic - Seller-Level)**
 
-The seller segmentation identifies a clearly separable High_Risk cluster
-with a late delivery rate of 16.2%, more than three times the platform
-average. Account managers should prioritise this segment for targeted
-interventions, including structured performance reviews, logistics
-coaching, and, where chronic underperformance persists, graduated
-penalty structures such as reduced visibility in search rankings or
-mandatory shipping insurance. The Premium_Freight cluster, despite low
-late rates, exhibits elevated average freight costs; these sellers may
-benefit from carrier renegotiation support or fulfilment hub
-partnerships rather than performance penalties. Account managers should
-also monitor Low_Volume sellers as they scale, since their segment
-metrics are inherently less stable and may shift as order volume grows.
+The seller segmentation identifies a clearly separable High_Risk cluster with a late delivery rate of 16.2%, more than three times the platform average. Account managers should prioritise this segment for targeted interventions, including structured performance reviews, logistics coaching, and, where chronic underperformance persists, graduated penalty structures such as reduced visibility in search rankings or mandatory shipping insurance. The Premium_Freight cluster, despite low late rates, exhibits elevated average freight costs; these sellers may benefit from carrier renegotiation support or fulfilment hub partnerships rather than performance penalties. Account managers should also monitor Low_Volume sellers as they scale, since their segment metrics are inherently less stable and may shift as order volume grows.
 
 **For Olist's Customer Service Operations (Tactical - Order-Level)**
 
-The classification models demonstrate that late delivery risk can be
-estimated at the time of order placement with meaningful discriminative
-ability (best AUC: 0.692). Customer service should adopt the
-cost-sensitive C5.0 model for its operational alert pipeline, accepting
-the higher false positive rate (specificity: 47.3%) in exchange for
-capturing 71.9% of truly late orders. In practice, this means that for
-flagged orders, customer service can send preemptive status updates,
-offer delivery timeline extensions, or prepare expedited shipping
-alternatives before the customer experiences frustration. Thereby anticipating the effects of the moderating variable. For orders
-that are not flagged, the standard reactive workflow remains
-appropriate. The precise threshold for triggering proactive contact
-should be calibrated in collaboration with Olist's operations team,
-reflecting the available contact capacity and the marginal cost of each
-outreach.
+The classification models demonstrate that late delivery risk can be estimated at the time of order placement with meaningful discriminative ability (best AUC: 0.692). Customer service should adopt the cost-sensitive C5.0 model for its operational alert pipeline, accepting the higher false positive rate (specificity: 47.3%) in exchange for capturing 71.9% of truly late orders. In practice, this means that for flagged orders, customer service can send preemptive status updates, offer delivery timeline extensions, or prepare expedited shipping alternatives before the customer experiences frustration. Thereby anticipating the effects of the moderating variable. For orders that are not flagged, the standard reactive workflow remains appropriate. The precise threshold for triggering proactive contact should be calibrated in collaboration with Olist's operations team, reflecting the available contact capacity and the marginal cost of each outreach.
 
 ## Limitations
 
 Several limitations qualify the conclusions drawn above.
 
-First, **model performance remains modest in absolute terms**. The
-best-performing model (Random Forest) achieves an AUC of 0.692 which is
-substantially above random (0.5) but far from a reliable
-individual-order prediction system. Precision for the Late class does
-not exceed 13.4% in any model, meaning that the majority of flagged
-orders will arrive on time. This limits the operational efficiency of
-proactive contact and implies that the system is better suited as a
-*prioritisation* tool (rank-ordering orders by risk) than as a binary
-alerting system.
+First, **model performance remains modest in absolute terms**. The best-performing model (Random Forest) achieves an AUC of 0.692 which is substantially above random (0.5) but far from a reliable individual-order prediction system. Precision for the Late class does not exceed 13.4% in any model, meaning that the majority of flagged orders will arrive on time. This limits the operational efficiency of proactive contact and implies that the system is better suited as a *prioritisation* tool (rank-ordering orders by risk) than as a binary alerting system.
 
-Second, **feature availability at prediction time is constrained**. The
-model deliberately excludes post-purchase variables (e.g., carrier
-handoff date, tracking events) to simulate prediction at the point of
-sale. This design choice ensures operational relevance but removes
-precisely the variables that carry the strongest predictive signal for
-delivery outcomes. A production system with access to real-time
-logistics data would likely outperform the models presented here.
+Second, **feature availability at prediction time is constrained**. The model deliberately excludes post-purchase variables (e.g., carrier handoff date, tracking events) to simulate prediction at the point of sale. This design choice ensures operational relevance but removes precisely the variables that carry the strongest predictive signal for delivery outcomes. A production system with access to real-time logistics data would likely outperform the models presented here.
 
-Third, **the ROSE oversampling procedure introduces synthetic training
-examples** that may not fully represent the structure of the minority
-class. While ROSE was applied only to training data, preserving the
-real-world distribution in the test set, the synthetic examples may
-introduce noise that partly explains the high false positive rates
-observed across all models.
+Third, **the ROSE oversampling procedure introduces synthetic training examples** that may not fully represent the structure of the minority class. While ROSE was applied only to training data, preserving the real-world distribution in the test set, the synthetic examples may introduce noise that partly explains the high false positive rates observed across all models.
 
-Fourth, **the text analytics component operates on raw Portuguese
-tokens** without lemmatisation, stemming, or translation. This limits
-the granularity of the topic model and means that morphological variants
-of the same concept are treated as distinct features. A more refined NLP
-pipeline with Portuguese-specific preprocessing tools (e.g., the
-`udpipe` package with a Portuguese model) would yield sharper topic
-separation and more interpretable results.
+Fourth, **the text analytics component operates on raw Portuguese tokens** without lemmatisation, stemming, or translation. This limits the granularity of the topic model and means that morphological variants of the same concept are treated as distinct features. A more refined NLP pipeline with Portuguese-specific preprocessing tools (e.g., the `udpipe` package with a Portuguese model) would yield sharper topic separation and more interpretable results.
 
-Fifth, **temporal dynamics are not modelled**. The analysis treats the
-dataset as a static cross-section, but in practice, seller performance
-evolves over time. A seller classified as High_Risk in this analysis may
-have improved (or deteriorated) during the observation period.
-Incorporating temporal features, such as a recent trend in late rate or
-time since first order, would better capture this evolution.
+Fifth, **temporal dynamics are not modelled**. The analysis treats the dataset as a static cross-section, but in practice, seller performance evolves over time. A seller classified as High_Risk in this analysis may have improved (or deteriorated) during the observation period. Incorporating temporal features, such as a recent trend in late rate or time since first order, would better capture this evolution.
 
 ## Reflection on Advanced Techniques
 
-This section addresses on how advanced techniques (deep learning, text
-analytics, and reinforcement learning) could, in principle, be applied
-to the problem. The focus is on what value they could add, what would be
-required, and what constraints might limit their usefulness.
+This section addresses on how advanced techniques (deep learning, text analytics, and reinforcement learning) could, in principle, be applied to the problem. The focus is on what value they could add, what would be required, and what constraints might limit their usefulness.
 
 ### Deep Learning
 
-Deep learning, excels at learning rich representations from
-high-dimensional unstructured data such as images. In this project,
-however, the data is fundamentally tabular: structured features at the
-order and seller level with well-defined meanings. Deep learning's
-representational capacity offers limited advantage in this context for
-several reasons.
+Deep learning, excels at learning rich representations from high-dimensional unstructured data such as images. In this project, however, the data is fundamentally tabular: structured features at the order and seller level with well-defined meanings. Deep learning's representational capacity offers limited advantage in this context for several reasons.
 
-First, the dataset contains approximately 110,000 observations with 11
-predictors, a regime where tree-based models (C5.0, Random Forest) are
-well-established as strong performers. Deep learning models typically
-require substantially larger datasets to realise their representational
-advantage and are prone to overfitting on smaller tabular datasets.
-Second, interpretability is a core requirement of this project. The
-business audiences (account managers and customer service) need to
-understand *why* an order or seller is flagged, not just the prediction
-itself. Decision trees and feature importance plots provide this
-transparency directly; neural networks would require post-hoc
-explanation methods (e.g., SHAP values) that add complexity without
-clear benefit. Third, the feature space is already low-dimensional and
-well-engineered, there are no raw, unprocessed inputs (such as images or
-text sequences) that would benefit from the hierarchical feature
-learning that deep learning provides.
+First, the dataset contains approximately 110,000 observations with 11 predictors, a regime where tree-based models (C5.0, Random Forest) are well-established as strong performers. Deep learning models typically require substantially larger datasets to realise their representational advantage and are prone to overfitting on smaller tabular datasets. Second, interpretability is a core requirement of this project. The business audiences (account managers and customer service) need to understand *why* an order or seller is flagged, not just the prediction itself. Decision trees and feature importance plots provide this transparency directly; neural networks would require post-hoc explanation methods (e.g., SHAP values) that add complexity without clear benefit. Third, the feature space is already low-dimensional and well-engineered, there are no raw, unprocessed inputs (such as images or text sequences) that would benefit from the hierarchical feature learning that deep learning provides.
 
-One scenario where deep learning could add value is if the problem were
-reformulated to incorporate unstructured data directly. For example, if
-product images were available, a convolutional neural network could
-learn visual features (e.g., product size, packaging quality) that
-correlate with delivery complexity. Similarly, if raw review text were
-modelled as a sequence (rather than as a bag of words), recurrent or
-transformer-based architectures could capture more nuanced patterns.
-However, both scenarios would require substantial additional data and
-infrastructure that fall outside the scope of this project.
+One scenario where deep learning could add value is if the problem were reformulated to incorporate unstructured data directly. For example, if product images were available, a convolutional neural network could learn visual features (e.g., product size, packaging quality) that correlate with delivery complexity. Similarly, if raw review text were modelled as a sequence (rather than as a bag of words), recurrent or transformer-based architectures could capture more nuanced patterns. However, both scenarios would require substantial additional data and infrastructure that fall outside the scope of this project.
 
 ### Text Analytics
 
-Text analytics was implemented in this project through LDA topic
-modelling on Portuguese review text, comparing themes in late-delivery
-versus on-time reviews. This implementation serves a complementary,
-qualitative role: it validates the business case by showing that late
-deliveries generate *qualitatively different* customer feedback, not
-just lower scores.
+Text analytics was implemented in this project through LDA topic modelling on Portuguese review text, comparing themes in late-delivery versus on-time reviews. This implementation serves a complementary, qualitative role: it validates the business case by showing that late deliveries generate *qualitatively different* customer feedback, not just lower scores.
 
-The current implementation is deliberately basic. Reviews were tokenised
-and filtered but not lemmatised, stemmed, or translated. More advanced
-approaches could extend this analysis in several directions. Sentiment
-analysis using Portuguese-specific lexicons or multilingual transformer
-models (e.g., multilingual BERT) could quantify the intensity of
-negative sentiment associated with late deliveries, moving beyond the
-binary Late/On_Time grouping. Aspect-based sentiment analysis could
-identify which specific aspects of the delivery experience (e.g.,
-communication, packaging, carrier performance) drive dissatisfaction.
-Additionally, review text features (e.g., sentiment scores, topic
-proportions) could be integrated as predictors in the classification
-models, potentially improving late-delivery prediction by capturing
-customer-facing signals that structured order data does not.
+The current implementation is deliberately basic. Reviews were tokenised and filtered but not lemmatised, stemmed, or translated. More advanced approaches could extend this analysis in several directions. Sentiment analysis using Portuguese-specific lexicons or multilingual transformer models (e.g., multilingual BERT) could quantify the intensity of negative sentiment associated with late deliveries, moving beyond the binary Late/On_Time grouping. Aspect-based sentiment analysis could identify which specific aspects of the delivery experience (e.g., communication, packaging, carrier performance) drive dissatisfaction. Additionally, review text features (e.g., sentiment scores, topic proportions) could be integrated as predictors in the classification models, potentially improving late-delivery prediction by capturing customer-facing signals that structured order data does not.
 
-However, incorporating text features into the prediction pipeline
-introduces a conceptual complication: review text is generated *after*
-delivery, meaning it cannot be used for prediction at the point of sale.
-Text analytics therefore remains most valuable as a diagnostic and
-strategic tool, helping Olist understand the *consequences* of late
-delivery, rather than as a predictive input.
+However, incorporating text features into the prediction pipeline introduces a conceptual complication: review text is generated *after* delivery, meaning it cannot be used for prediction at the point of sale. Text analytics therefore remains most valuable as a diagnostic and strategic tool, helping Olist understand the *consequences* of late delivery, rather than as a predictive input.
 
 ### Reinforcement Learning
 
-Reinforcement learning (RL), addresses problems of sequential
-decision-making under uncertainty, where an agent learns a policy by
-interacting with an environment over time. The late-delivery prediction
-problem, as currently framed, is a static classification task, each
-order is evaluated independently at a single point in time and therefore
-does not naturally lend itself to an RL formulation.
+Reinforcement learning (RL), addresses problems of sequential decision-making under uncertainty, where an agent learns a policy by interacting with an environment over time. The late-delivery prediction problem, as currently framed, is a static classification task, each order is evaluated independently at a single point in time and therefore does not naturally lend itself to an RL formulation.
 
-However, a meaningful RL application could emerge if the problem were
-reformulated around Olist's *intervention decisions*. Consider the
-following scenario: when an order is flagged as high-risk, Olist must
-decide what action to take, send a preemptive notification, contact the
-seller, offer expedited shipping, or do nothing. Each action has a cost,
-and its effectiveness depends on the specific circumstances (seller
-profile, product type, geographic distance). The outcome of the action
-(whether the customer leaves a negative review, whether the delivery is
-ultimately late) provides delayed feedback. This sequential decision
-problem - repeatedly choosing interventions across thousands of orders
-and learning which actions are most effective for which risk profiles,
-maps naturally onto an RL framework.
+However, a meaningful RL application could emerge if the problem were reformulated around Olist's *intervention decisions*. Consider the following scenario: when an order is flagged as high-risk, Olist must decide what action to take, send a preemptive notification, contact the seller, offer expedited shipping, or do nothing. Each action has a cost, and its effectiveness depends on the specific circumstances (seller profile, product type, geographic distance). The outcome of the action (whether the customer leaves a negative review, whether the delivery is ultimately late) provides delayed feedback. This sequential decision problem - repeatedly choosing interventions across thousands of orders and learning which actions are most effective for which risk profiles, maps naturally onto an RL framework.
 
-In such a formulation, the *state* would include order features and the
-seller's risk profile, the *actions* would be the available
-interventions, and the *reward* would reflect a combination of customer
-satisfaction (review scores), operational cost, and delivery outcome. A
-Q-learning agent could learn which interventions are most cost-effective
-for different types of orders, adapting its policy over time as the
-platform accumulates more data. The key challenge would be defining a
-realistic reward structure that balances competing objectives (e.g., the
-cost of proactive contact versus the reputational cost of inaction),
-that RL agents are highly sensitive to reward design choices.
+In such a formulation, the *state* would include order features and the seller's risk profile, the *actions* would be the available interventions, and the *reward* would reflect a combination of customer satisfaction (review scores), operational cost, and delivery outcome. A Q-learning agent could learn which interventions are most cost-effective for different types of orders, adapting its policy over time as the platform accumulates more data. The key challenge would be defining a realistic reward structure that balances competing objectives (e.g., the cost of proactive contact versus the reputational cost of inaction), that RL agents are highly sensitive to reward design choices.
 
-This formulation would require real-time data on intervention outcomes,
-which Olist does not currently make available in the public dataset and
-would need careful consideration of exploration-exploitation trade-offs
-in a setting where poor exploration choices (e.g., choosing not to
-intervene on a truly late order) have real consequences for customers.
-Nevertheless, it represents a conceptually sound extension that would
-move Olist from *predicting* late deliveries to *optimally managing*
-them.
+This formulation would require real-time data on intervention outcomes, which Olist does not currently make available in the public dataset and would need careful consideration of exploration-exploitation trade-offs in a setting where poor exploration choices (e.g., choosing not to intervene on a truly late order) have real consequences for customers. Nevertheless, it represents a conceptually sound extension that would move Olist from *predicting* late deliveries to *optimally managing* them.
 
 ## Final Remark
 
-This project demonstrates that a two-stage analytical pipeline,
-unsupervised seller segmentation followed by supervised order-level
-classification, provides a coherent framework for shifting Olist's
-delivery management from reactive to proactive. The seller segmentation
-identifies structurally distinct performance profiles that are
-operationally meaningful, and the ablation test confirms that this
-segmentation adds measurable predictive value to the order-level models.
-The text analytics component complements the quantitative pipeline by
-revealing the qualitative consequences of late delivery in customers'
-own words.
+This project demonstrates that a two-stage analytical pipeline, unsupervised seller segmentation followed by supervised order-level classification, provides a coherent framework for shifting Olist's delivery management from reactive to proactive. The seller segmentation identifies structurally distinct performance profiles that are operationally meaningful, and the ablation test confirms that this segmentation adds measurable predictive value to the order-level models. The text analytics component complements the quantitative pipeline by revealing the qualitative consequences of late delivery in customers' own words.
 
-The models presented here are not production-ready, their precision is
-too low for fully automated decision-making, and several data
-limitations constrain their discriminative power. However, the
-analytical design is sound: it separates the strategic question (*which
-sellers are structurally high-risk?*) from the tactical question (*which
-orders should be flagged?*), enabling different business units to act on
-insights at the appropriate level. The path to deployment would involve
-enriching the feature set with real-time logistics data, refining the
-text analytics pipeline with Portuguese-specific NLP tools, and
-calibrating decision thresholds in collaboration with Olist's operations
-team.
+The models presented here are not production-ready, their precision is too low for fully automated decision-making, and several data limitations constrain their discriminative power. However, the analytical design is sound: it separates the strategic question (*which sellers are structurally high-risk?*) from the tactical question (*which orders should be flagged?*), enabling different business units to act on insights at the appropriate level. The path to deployment would involve enriching the feature set with real-time logistics data, refining the text analytics pipeline with Portuguese-specific NLP tools, and calibrating decision thresholds in collaboration with Olist's operations team.
 
 # 8. Bibliography
 
 Buck, A. (n.d.). Ecommerce share of retail sales [Updated 2026].
 <https://www.mobiloud.com/blog/ecommerce-percentage-of-retail-sales>
 
-Global ecommerce Sales Growth (2022-2028) [Updated Oct 2024]. (n.d.).
-Oberlo.
+Global ecommerce Sales Growth (2022-2028) [Updated Oct 2024]. (n.d.). Oberlo.
 <https://www.oberlo.com/statistics/global-ecommerce-sales-growth>
 
 Silva, R. (2023). *Trends in Brazilian E-commerce: Growth, Challenges, and Opportunities*.
